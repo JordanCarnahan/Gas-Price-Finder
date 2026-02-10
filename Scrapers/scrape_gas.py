@@ -1,6 +1,8 @@
+import os
 import re
 import json
 import csv
+from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,9 +15,9 @@ from selenium.webdriver.support import expected_conditions as EC
 
 # ---------- Browser helpers ----------
 ENABLE_REGULAR = True
-ENABLE_MIDGRADE = False
-ENABLE_PREMIUM = False
-ENABLE_DIESEL = False
+ENABLE_MIDGRADE = True
+ENABLE_PREMIUM = True
+ENABLE_DIESEL = True
 ENABLE_UPDATE_TIMES = False
 
 def city_has_stations(driver, timeout: int = 6) -> bool:
@@ -265,37 +267,42 @@ if __name__ == "__main__":
     all_results = {}
 
     for city_name, url in cities.items():
-        print(f"Scraping {city_name}...")  # runtime message only
+        print(f"Scraping {city_name}...")
 
         try:
             city_data = scrape_all_fueltypes(url, limit=30, headless=False)
-
-            # Save data regardless (empty list if no stations)
             all_results[city_name] = city_data if city_data else []
 
             if not city_data:
                 print(f"Skipped {city_name} (no data)")
 
         except Exception as e:
-            print(f"Error on {city_name}")  # runtime message only
+            print(f"Error on {city_name}")
             all_results[city_name] = {"error": str(e)}
 
-    # Save ALL data to JSON (no terminal dump)
-    with open("gas_prices_near_la_mirada.json", "w", encoding="utf-8") as f:
+    JSON_DIR = "JSON Files"
+    CSV_DIR = "CSV Files"
+
+
+    # Create timestamped filenames
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    json_file = os.path.join(JSON_DIR, f"gas_prices_{ts}.json")
+    csv_file = os.path.join(CSV_DIR, f"gas_prices_{ts}.csv")
+
+    # Save JSON
+    with open(json_file, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2)
+    print(f"Saved {json_file}")
 
-    print("Saved gas_prices_near_la_mirada.json")
-
-    INPUT_FILE = "gas_prices_near_la_mirada.json"   # use your current JSON filename
-    OUTPUT_FILE = "gas_prices.csv"
-
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+    # Convert JSON -> CSV (read the same JSON you just wrote)
+    with open(json_file, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
+    with open(csv_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
 
         writer.writerow([
+            "Run Timestamp",
             "City",
             "Station",
             "Address",
@@ -310,13 +317,13 @@ if __name__ == "__main__":
         ])
 
         for city, stations in data.items():
-            # stations could be [] or {"error": "..."}
             if isinstance(stations, dict) and "error" in stations:
-                writer.writerow([city, "ERROR", stations.get("error"), "", "", "", "", "", "", "", ""])
+                writer.writerow([ts, city, "ERROR", stations.get("error", ""), "", "", "", "", "", "", "", ""])
                 continue
 
             for s in stations:
                 writer.writerow([
+                    ts,
                     city,
                     s.get("name", ""),
                     s.get("address", ""),
@@ -330,7 +337,4 @@ if __name__ == "__main__":
                     s.get("diesel_updated", ""),
                 ])
 
-    print(f"Saved {OUTPUT_FILE}")
-
-
-
+    print(f"Saved {csv_file}")

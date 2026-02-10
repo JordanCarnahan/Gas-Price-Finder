@@ -97,7 +97,7 @@
       "name": "G&M",
       "station_url": "https://www.gasbuddy.com/station/90043",
       "address": "1950 W La Habra Blvd",
-      "regular": 4.09,
+      "regular": 4.19,
       "regular_updated": ""
     },
     {
@@ -123,8 +123,8 @@
     },
     {
       "name": "Chevron",
-      "station_url": "https://www.gasbuddy.com/station/29685",
-      "address": "110 S Harbor Blvd",
+      "station_url": "https://www.gasbuddy.com/station/170451",
+      "address": "1150 W La Habra Blvd",
       "regular": 4.69,
       "regular_updated": ""
     },

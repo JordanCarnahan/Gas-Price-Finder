@@ -1,0 +1,265 @@
+{
+  "La Mirada": [
+    {
+      "name": "EGas",
+      "station_url": "https://www.gasbuddy.com/station/8999",
+      "address": "15754 Imperial Hwy",
+      "regular": 3.75,
+      "regular_updated": "",
+      "midgrade": 3.95,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/24120",
+      "address": "15700 Valley View Ave",
+      "regular": 3.83,
+      "regular_updated": "",
+      "midgrade": 3.97,
+      "midgrade_updated": "",
+      "premium": 4.09,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/8077",
+      "address": "15003 Imperial Hwy",
+      "regular": 4.29,
+      "regular_updated": "",
+      "midgrade": 4.49,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/9000",
+      "address": "14910 Beach Blvd",
+      "regular": 4.43,
+      "regular_updated": "",
+      "midgrade": 4.63,
+      "midgrade_updated": "",
+      "premium": 4.83,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/11542",
+      "address": "15354 La Mirada Blvd",
+      "regular": 4.79,
+      "regular_updated": "",
+      "midgrade": 4.95,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/8082",
+      "address": "14021 Valley View Ave",
+      "regular": 4.85,
+      "regular_updated": "",
+      "midgrade": 3.95,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/8078",
+      "address": "15754 Imperial Hwy",
+      "regular": 3.75,
+      "regular_updated": "",
+      "midgrade": 4.59,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/8212",
+      "address": "15754 Imperial Hwy",
+      "regular": 3.75,
+      "regular_updated": "",
+      "midgrade": 3.95,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/8379",
+      "address": "15754 Imperial Hwy",
+      "regular": 3.75,
+      "regular_updated": "",
+      "midgrade": 3.95,
+      "midgrade_updated": "",
+      "premium": 4.05,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    }
+  ],
+  "La Habra": [
+    {
+      "name": "Berri Brothers",
+      "station_url": "https://www.gasbuddy.com/station/89944",
+      "address": "619 E La Habra Blvd",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.19,
+      "premium_updated": "",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/35625",
+      "address": "1401 E Lambert Rd",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.29,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Sam's Club",
+      "station_url": "https://www.gasbuddy.com/station/29937",
+      "address": "1390 S Beach Blvd",
+      "regular": 3.95,
+      "regular_updated": "",
+      "premium": 4.25,
+      "premium_updated": ""
+    },
+    {
+      "name": "Costco",
+      "station_url": "https://www.gasbuddy.com/station/9070",
+      "address": "101 N Beach Blvd",
+      "regular": 3.99,
+      "regular_updated": "",
+      "premium": 4.29,
+      "premium_updated": ""
+    },
+    {
+      "name": "G&M",
+      "station_url": "https://www.gasbuddy.com/station/90043",
+      "address": "1950 W La Habra Blvd",
+      "regular": 4.19,
+      "regular_updated": "",
+      "midgrade": 4.39,
+      "midgrade_updated": "",
+      "premium": 4.49,
+      "premium_updated": "",
+      "diesel": 4.59,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Speedway",
+      "station_url": "https://www.gasbuddy.com/station/35346",
+      "address": "101 E Whittier Blvd",
+      "regular": 4.29,
+      "regular_updated": "",
+      "midgrade": 4.49,
+      "midgrade_updated": "",
+      "premium": 4.59,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/35197",
+      "address": "101 E Imperial Hwy",
+      "regular": 4.55,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.85,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/80627",
+      "address": "601 W Imperial Hwy",
+      "regular": 4.55,
+      "regular_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/170451",
+      "address": "1150 W La Habra Blvd",
+      "regular": 4.69,
+      "regular_updated": "",
+      "midgrade": 4.89,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/34862",
+      "address": "101 E Lambert Rd",
+      "regular": 4.69,
+      "regular_updated": "",
+      "midgrade": 4.89,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/29685",
+      "address": "110 S Harbor Blvd",
+      "midgrade": 4.89,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/24112",
+      "address": "1950 W Imperial Hwy",
+      "midgrade": 4.99,
+      "midgrade_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/199757",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in La Habra, CA",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/35629",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in La Habra, CA",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    }
+  ]
+}
