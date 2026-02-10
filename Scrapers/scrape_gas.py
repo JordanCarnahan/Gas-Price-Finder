@@ -1,5 +1,6 @@
 import re
 import json
+import csv
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -8,11 +9,15 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import json
-import csv
 
 
 # ---------- Browser helpers ----------
+ENABLE_REGULAR = True
+ENABLE_MIDGRADE = False
+ENABLE_PREMIUM = False
+ENABLE_DIESEL = False
+ENABLE_UPDATE_TIMES = False
+
 def city_has_stations(driver, timeout: int = 6) -> bool:
     try:
         WebDriverWait(driver, timeout).until(
@@ -73,10 +78,7 @@ def select_fueltype_and_wait(driver, value: str, timeout: int = 15):
     wait.until(ready)
 
 
-
-
 # ---------- Scraping logic ----------
-
 price_re = re.compile(r"\$\s*(\d+\.\d{2})")
 
 
@@ -168,7 +170,7 @@ def station_id_from_url(u: str) -> str:
     return u.rstrip("/").split("/")[-1]
 
 
-def combine_by_station(regular, midgrade, premium, diesel):
+def combine_by_station(regular, midgrade, premium, diesel, include_updates=True):
     combined = {}
 
     for grade, rows in [
@@ -185,7 +187,11 @@ def combine_by_station(regular, midgrade, premium, diesel):
                 "address": r.get("address", ""),
             })
             combined[sid][grade] = r.get("price")
-            combined[sid][f"{grade}_updated"] = r.get("updated", "")
+
+            if include_updates:
+                combined[sid][f"{grade}_updated"] = r.get("updated", "")
+            else:
+                combined[sid][f"{grade}_updated"] = ""
 
     return list(combined.values())
 
@@ -202,46 +208,58 @@ def scrape_all_fueltypes(url: str, limit: int = 30, headless: bool = False):
     try:
         driver.get(url)
 
-        # ✅ Skip city if there are no stations
         if not city_has_stations(driver):
             return []
 
-        # Regular (default) just scrape, don't force select "1"
-        regular_data = scrape_city_page_current_dom(driver, limit=limit)
+        regular_data = []
+        midgrade_data = []
+        premium_data = []
+        diesel_data = []
+
+        # Regular (default)
+        if ENABLE_REGULAR:
+            regular_data = scrape_city_page_current_dom(driver, limit=limit)
 
         # Midgrade
-        select_fueltype_and_wait(driver, "2")
-        midgrade_data = scrape_city_page_current_dom(driver, limit=limit)
+        if ENABLE_MIDGRADE:
+            select_fueltype_and_wait(driver, "2")
+            midgrade_data = scrape_city_page_current_dom(driver, limit=limit)
 
         # Premium
-        select_fueltype_and_wait(driver, "3")
-        premium_data = scrape_city_page_current_dom(driver, limit=limit)
+        if ENABLE_PREMIUM:
+            select_fueltype_and_wait(driver, "3")
+            premium_data = scrape_city_page_current_dom(driver, limit=limit)
 
         # Diesel
-        select_fueltype_and_wait(driver, "4")
-        diesel_data = scrape_city_page_current_dom(driver, limit=limit)
+        if ENABLE_DIESEL:
+            select_fueltype_and_wait(driver, "4")
+            diesel_data = scrape_city_page_current_dom(driver, limit=limit)
 
-        return combine_by_station(regular_data, midgrade_data, premium_data, diesel_data)
+        return combine_by_station(
+            regular_data,
+            midgrade_data,
+            premium_data,
+            diesel_data,
+            include_updates=ENABLE_UPDATE_TIMES
+        )
 
     finally:
         driver.quit()
 
-
-
+#main execution
 if __name__ == "__main__":
 
     cities = {
         "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
         "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
-        "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
-        "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
-        "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
-        "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
-        "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
-        "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
-        "La Habra Heights": "https://www.gasbuddy.com/gasprices/california/la-habra-heights",
-        "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
-        "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
+        #"Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
+        #"Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
+        #"Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
+        #"Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
+        #"Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
+        #"Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
+        #"Brea": "https://www.gasbuddy.com/gasprices/california/brea",
+        #"Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
     }
 
     all_results = {}
@@ -268,7 +286,7 @@ if __name__ == "__main__":
 
     print("Saved gas_prices_near_la_mirada.json")
 
-    INPUT_FILE = "gas_prices_near_la_mirada.json"
+    INPUT_FILE = "gas_prices_near_la_mirada.json"   # use your current JSON filename
     OUTPUT_FILE = "gas_prices.csv"
 
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
@@ -276,28 +294,43 @@ if __name__ == "__main__":
 
     with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
+
         writer.writerow([
             "City",
             "Station",
             "Address",
             "Regular",
+            "Regular Updated",
             "Midgrade",
+            "Midgrade Updated",
             "Premium",
-            "Diesel"
+            "Premium Updated",
+            "Diesel",
+            "Diesel Updated",
         ])
 
         for city, stations in data.items():
+            # stations could be [] or {"error": "..."}
+            if isinstance(stations, dict) and "error" in stations:
+                writer.writerow([city, "ERROR", stations.get("error"), "", "", "", "", "", "", "", ""])
+                continue
+
             for s in stations:
                 writer.writerow([
                     city,
-                    s.get("name"),
-                    s.get("address"),
-                    s.get("regular"),
-                    s.get("midgrade"),
-                    s.get("premium"),
-                    s.get("diesel"),
+                    s.get("name", ""),
+                    s.get("address", ""),
+                    s.get("regular", ""),
+                    s.get("regular_updated", ""),
+                    s.get("midgrade", ""),
+                    s.get("midgrade_updated", ""),
+                    s.get("premium", ""),
+                    s.get("premium_updated", ""),
+                    s.get("diesel", ""),
+                    s.get("diesel_updated", ""),
                 ])
 
     print(f"Saved {OUTPUT_FILE}")
+
 
 
