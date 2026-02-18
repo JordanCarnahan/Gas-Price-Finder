@@ -1,0 +1,679 @@
+{
+  "La Mirada": [
+    {
+      "name": "EGas",
+      "station_url": "https://www.gasbuddy.com/station/8999",
+      "address": "15754 Imperial Hwy",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.15,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/24120",
+      "address": "15700 Valley View Ave",
+      "regular": 3.97,
+      "regular_updated": "",
+      "midgrade": 4.11,
+      "midgrade_updated": "",
+      "premium": 4.23,
+      "premium_updated": "",
+      "diesel": 4.63,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/8078",
+      "address": "14152 Imperial Hwy",
+      "regular": 4.53,
+      "regular_updated": "",
+      "midgrade": 4.73,
+      "midgrade_updated": "",
+      "premium": 4.93,
+      "premium_updated": "",
+      "diesel": 4.63,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/8077",
+      "address": "15003 Imperial Hwy",
+      "regular": 4.63,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.15,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/9000",
+      "address": "14910 Beach Blvd",
+      "regular": 4.67,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 5.07,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/11542",
+      "address": "15354 La Mirada Blvd",
+      "regular": 4.79,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/8082",
+      "address": "14021 Valley View Ave",
+      "regular": 4.95,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.15,
+      "premium_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/8212",
+      "address": "E85 Fuel Prices",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.15,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/8379",
+      "address": "E85 Fuel Prices",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.09,
+      "midgrade_updated": "",
+      "premium": 4.15,
+      "premium_updated": "",
+      "diesel": 5.29,
+      "diesel_updated": ""
+    }
+  ],
+  "La Habra": [
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/35625",
+      "address": "1401 E Lambert Rd",
+      "regular": 3.99,
+      "regular_updated": "",
+      "midgrade": 4.19,
+      "midgrade_updated": "",
+      "premium": 4.39,
+      "premium_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Costco",
+      "station_url": "https://www.gasbuddy.com/station/9070",
+      "address": "101 N Beach Blvd",
+      "regular": 4.03,
+      "regular_updated": "",
+      "premium": 4.33,
+      "premium_updated": ""
+    },
+    {
+      "name": "Sam's Club",
+      "station_url": "https://www.gasbuddy.com/station/29937",
+      "address": "1390 S Beach Blvd",
+      "regular": 4.03,
+      "regular_updated": "",
+      "premium": 4.33,
+      "premium_updated": ""
+    },
+    {
+      "name": "Berri Brothers",
+      "station_url": "https://www.gasbuddy.com/station/89944",
+      "address": "619 E La Habra Blvd",
+      "regular": 4.05,
+      "regular_updated": "",
+      "midgrade": 4.15,
+      "midgrade_updated": "",
+      "premium": 4.25,
+      "premium_updated": "",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    },
+    {
+      "name": "G&M",
+      "station_url": "https://www.gasbuddy.com/station/90043",
+      "address": "1950 W La Habra Blvd",
+      "regular": 4.19,
+      "regular_updated": "",
+      "midgrade": 4.39,
+      "midgrade_updated": "",
+      "premium": 4.49,
+      "premium_updated": "",
+      "diesel": 4.59,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Speedway",
+      "station_url": "https://www.gasbuddy.com/station/35346",
+      "address": "101 E Whittier Blvd",
+      "regular": 4.39,
+      "regular_updated": "",
+      "midgrade": 4.59,
+      "midgrade_updated": "",
+      "premium": 4.69,
+      "premium_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/35197",
+      "address": "101 E Imperial Hwy",
+      "regular": 4.54,
+      "regular_updated": "",
+      "midgrade": 4.74,
+      "midgrade_updated": "",
+      "premium": 4.84,
+      "premium_updated": "",
+      "diesel": 4.79,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/34862",
+      "address": "101 E Lambert Rd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/170451",
+      "address": "1150 W La Habra Blvd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/29685",
+      "address": "110 S Harbor Blvd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/80627",
+      "address": "601 W Imperial Hwy",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.93,
+      "premium_updated": "",
+      "diesel": 4.95,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/24112",
+      "address": "1950 W Imperial Hwy",
+      "midgrade": 5.09,
+      "midgrade_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/35629",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in La Habra, CA",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/199757",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in La Habra, CA",
+      "diesel": 4.55,
+      "diesel_updated": ""
+    }
+  ],
+  "Whittier": [
+    {
+      "name": "Super 8",
+      "station_url": "https://www.gasbuddy.com/station/32790",
+      "address": "10802 Whittier Blvd",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.05,
+      "midgrade_updated": "",
+      "premium": 4.25,
+      "premium_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/7934",
+      "address": "8803 Painter Ave",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.29,
+      "midgrade_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/7939",
+      "address": "12525 Hadley St",
+      "regular": 3.95,
+      "regular_updated": "",
+      "midgrade": 4.15,
+      "midgrade_updated": "",
+      "premium": 4.35,
+      "premium_updated": ""
+    },
+    {
+      "name": "G&M",
+      "station_url": "https://www.gasbuddy.com/station/8406",
+      "address": "12559 Lambert Rd",
+      "regular": 4.19,
+      "regular_updated": "",
+      "midgrade": 4.39,
+      "midgrade_updated": "",
+      "premium": 4.49,
+      "premium_updated": "",
+      "diesel": 4.59,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/7018",
+      "address": "12911 Whittier Blvd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Mobil",
+      "station_url": "https://www.gasbuddy.com/station/7942",
+      "address": "11253 E Whittier Blvd",
+      "regular": 4.67,
+      "regular_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/11153",
+      "address": "15735 Leffingwell Rd",
+      "regular": 4.69,
+      "regular_updated": "",
+      "midgrade": 4.89,
+      "midgrade_updated": "",
+      "premium": 5.09,
+      "premium_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/10334",
+      "address": "10808 E Beverly Blvd",
+      "regular": 4.89,
+      "regular_updated": "",
+      "premium": 5.29,
+      "premium_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/7020",
+      "address": "14941 E Whittier Blvd",
+      "regular": 4.99,
+      "regular_updated": "",
+      "midgrade": 4.05,
+      "midgrade_updated": "",
+      "premium": 4.25,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/6799",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Whittier, CA",
+      "regular": 3.89,
+      "regular_updated": "",
+      "midgrade": 4.05,
+      "midgrade_updated": "",
+      "premium": 4.39,
+      "premium_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/7935",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Whittier, CA",
+      "midgrade": 4.05,
+      "midgrade_updated": "",
+      "premium": 4.25,
+      "premium_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/7625",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Whittier, CA",
+      "midgrade": 4.05,
+      "midgrade_updated": "",
+      "premium": 4.25,
+      "premium_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/6861",
+      "address": "E85 Fuel Prices",
+      "diesel": 4.59,
+      "diesel_updated": ""
+    }
+  ],
+  "Santa Fe Springs": [
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/10278",
+      "address": "10717 Carmenita Rd",
+      "regular": 4.09,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/10280",
+      "address": "11770 E Washington Blvd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/11088",
+      "address": "13363 Telegraph Rd",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Shell",
+      "station_url": "https://www.gasbuddy.com/station/34533",
+      "address": "13352 Imperial Hwy",
+      "regular": 4.89,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/9382",
+      "address": "11651 Telegraph Rd",
+      "regular": 4.89,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/10279",
+      "address": "11426 Telegraph Rd",
+      "regular": 4.95,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": ""
+    },
+    {
+      "name": "Mobil",
+      "station_url": "https://www.gasbuddy.com/station/9650",
+      "address": "11405 Florence Ave",
+      "regular": 4.99,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 5.09,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/9383",
+      "address": "E85 Fuel Prices",
+      "regular": 4.09,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": ""
+    },
+    {
+      "name": "REG - C NRG Fleet",
+      "station_url": "https://www.gasbuddy.com/station/134883",
+      "address": "E85 Fuel Prices",
+      "regular": 4.09,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "US Fleet Services",
+      "station_url": "https://www.gasbuddy.com/station/78721",
+      "address": "E85 Fuel Prices",
+      "diesel": 4.69,
+      "diesel_updated": ""
+    }
+  ],
+  "Buena Park": [
+    {
+      "name": "E-Z Gas",
+      "station_url": "https://www.gasbuddy.com/station/23273",
+      "address": "6000 Orangethorpe Ave",
+      "regular": 3.93,
+      "regular_updated": "",
+      "midgrade": 4.13,
+      "midgrade_updated": "",
+      "premium": 4.33,
+      "premium_updated": "",
+      "diesel": 4.65,
+      "diesel_updated": ""
+    },
+    {
+      "name": "ARCO",
+      "station_url": "https://www.gasbuddy.com/station/23272",
+      "address": "7990 S Knott Ave",
+      "regular": 4.19,
+      "regular_updated": "",
+      "midgrade": 4.29,
+      "midgrade_updated": "",
+      "premium": 4.39,
+      "premium_updated": ""
+    },
+    {
+      "name": "7-Eleven",
+      "station_url": "https://www.gasbuddy.com/station/77767",
+      "address": "8495 Western Ave",
+      "regular": 4.33,
+      "regular_updated": "",
+      "midgrade": 4.63,
+      "midgrade_updated": "",
+      "premium": 4.83,
+      "premium_updated": "",
+      "diesel": 4.64,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/25376",
+      "address": "7760 Crescent Ave",
+      "regular": 4.49,
+      "regular_updated": "",
+      "midgrade": 4.64,
+      "midgrade_updated": "",
+      "premium": 4.79,
+      "premium_updated": ""
+    },
+    {
+      "name": "Valero",
+      "station_url": "https://www.gasbuddy.com/station/138728",
+      "address": "5231 Beach Blvd",
+      "regular": 4.51,
+      "regular_updated": "",
+      "midgrade": 4.71,
+      "midgrade_updated": "",
+      "premium": 4.86,
+      "premium_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/67935",
+      "address": "5262 Beach Blvd",
+      "regular": 4.54,
+      "regular_updated": "",
+      "midgrade": 4.74,
+      "midgrade_updated": "",
+      "premium": 4.89,
+      "premium_updated": "",
+      "diesel": 4.99,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/25939",
+      "address": "7990 Valley View St",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Mobil",
+      "station_url": "https://www.gasbuddy.com/station/23278",
+      "address": "8510 Knott Ave",
+      "regular": 4.59,
+      "regular_updated": "",
+      "midgrade": 4.79,
+      "midgrade_updated": "",
+      "premium": 4.99,
+      "premium_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/25599",
+      "address": "7250 Artesia Blvd",
+      "regular": 4.69,
+      "regular_updated": "",
+      "diesel": 4.89,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/25600",
+      "address": "6392 Beach Blvd",
+      "regular": 4.69,
+      "regular_updated": "",
+      "midgrade": 4.89,
+      "midgrade_updated": "",
+      "diesel": 4.64,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/25601",
+      "address": "5241 Beach Blvd",
+      "midgrade": 5.09,
+      "midgrade_updated": ""
+    },
+    {
+      "name": "Chevron",
+      "station_url": "https://www.gasbuddy.com/station/25384",
+      "address": "6971 Beach Blvd",
+      "premium": 5.09,
+      "premium_updated": "",
+      "diesel": 4.64,
+      "diesel_updated": ""
+    },
+    {
+      "name": "Speedway Express",
+      "station_url": "https://www.gasbuddy.com/station/91340",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Buena Park, CA",
+      "premium": 4.33,
+      "premium_updated": ""
+    },
+    {
+      "name": "Lucky Food and Fuel Inc",
+      "station_url": "https://www.gasbuddy.com/station/25937",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Buena Park, CA",
+      "diesel": 4.64,
+      "diesel_updated": ""
+    },
+    {
+      "name": "76",
+      "station_url": "https://www.gasbuddy.com/station/83568",
+      "address": "Top 10 Gas Station & Cheap Fuel Prices in Buena Park, CA",
+      "diesel": 4.64,
+      "diesel_updated": ""
+    }
+  ]
+}

@@ -254,14 +254,14 @@ if __name__ == "__main__":
     cities = {
         "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
         "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
-        #"Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
-        #"Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
-        #"Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
-        #"Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
-        #"Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
-        #"Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
-        #"Brea": "https://www.gasbuddy.com/gasprices/california/brea",
-        #"Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
+        "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
+        "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
+        "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
+        "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
+        "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
+        "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
+        "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
+        "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
     }
 
     all_results = {}
