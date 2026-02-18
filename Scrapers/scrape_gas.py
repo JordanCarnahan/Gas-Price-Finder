@@ -4,6 +4,7 @@ import json
 import csv
 from datetime import datetime
 
+from matplotlib import lines
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -19,6 +20,36 @@ ENABLE_MIDGRADE = True
 ENABLE_PREMIUM = True
 ENABLE_DIESEL = True
 ENABLE_UPDATE_TIMES = False
+
+STREET_SUFFIXES = (
+    "st", "street", "ave", "avenue", "blvd", "boulevard", "rd", "road",
+    "dr", "drive", "ln", "lane", "ct", "court", "pl", "place", "way",
+    "pkwy", "parkway", "hwy", "highway", "cir", "circle", "trl", "trail"
+)
+
+bad_address_phrases = (
+    "top ", "best gas", "gas prices", "cheap fuel", "stations in", "in "
+)
+
+def looks_like_address(line: str) -> bool:
+    s = (line or "").strip()
+    if not s:
+        return False
+
+    low = s.lower()
+
+    # reject obvious page-title style lines
+    if any(p in low for p in bad_address_phrases) and " ca" in low:
+        return False
+
+    # must start with a number (street number)
+    if not re.match(r"^\d{1,6}\s", s):
+        return False
+
+    # should contain a common street suffix
+    tokens = re.findall(r"[a-zA-Z]+", low)
+    return any(tok in STREET_SUFFIXES for tok in tokens)
+
 
 def city_has_stations(driver, timeout: int = 6) -> bool:
     try:
@@ -143,9 +174,10 @@ def scrape_city_page_current_dom(driver, limit: int = 30):
         # Address
         address = ""
         for ln in lines:
-            if re.search(r"\d{2,6}\s+\w+", ln):
+            if looks_like_address(ln):
                 address = ln
                 break
+
 
         # Updated time
         updated = ""
@@ -255,13 +287,13 @@ if __name__ == "__main__":
         "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
         "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
         "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
-        "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
-        "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
-        "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
-        "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
-        "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
-        "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
-        "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
+        #"Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
+        #"Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
+        #"Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
+        #"Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
+        #"Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
+        #"Brea": "https://www.gasbuddy.com/gasprices/california/brea",
+        #"Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
     }
 
     all_results = {}
