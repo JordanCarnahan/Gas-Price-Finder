@@ -1,10 +1,10 @@
+import argparse
 import os
 import re
 import json
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 
-from matplotlib import lines
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -14,12 +14,68 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
+def load_env_file(path: str):
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
 # ---------- Browser helpers ----------
 ENABLE_REGULAR = True
 ENABLE_MIDGRADE = True
 ENABLE_PREMIUM = True
 ENABLE_DIESEL = True
 ENABLE_UPDATE_TIMES = False
+ENABLE_JSON_OUTPUT = False
+ENABLE_CSV_OUTPUT = False
+
+# ---------- City toggles ----------
+ENABLE_CITY_LA_MIRADA = True
+ENABLE_CITY_LA_HABRA = True
+ENABLE_CITY_WHITTIER = False
+ENABLE_CITY_SANTA_FE_SPRINGS = False
+ENABLE_CITY_BUENA_PARK = False
+ENABLE_CITY_NORWALK = False
+ENABLE_CITY_CERRITOS = False
+ENABLE_CITY_FULLERTON = False
+ENABLE_CITY_BREA = False
+ENABLE_CITY_ANAHEIM = False
+
+CITY_URLS = {
+    "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
+    "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
+    "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
+    "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
+    "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
+    "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
+    "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
+    "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
+    "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
+    "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
+}
+
+CITY_TOGGLES = {
+    "La Mirada": ENABLE_CITY_LA_MIRADA,
+    "La Habra": ENABLE_CITY_LA_HABRA,
+    "Whittier": ENABLE_CITY_WHITTIER,
+    "Santa Fe Springs": ENABLE_CITY_SANTA_FE_SPRINGS,
+    "Buena Park": ENABLE_CITY_BUENA_PARK,
+    "Norwalk": ENABLE_CITY_NORWALK,
+    "Cerritos": ENABLE_CITY_CERRITOS,
+    "Fullerton": ENABLE_CITY_FULLERTON,
+    "Brea": ENABLE_CITY_BREA,
+    "Anaheim": ENABLE_CITY_ANAHEIM,
+}
 
 STREET_SUFFIXES = (
     "st", "street", "ave", "avenue", "blvd", "boulevard", "rd", "road",
@@ -280,55 +336,56 @@ def scrape_all_fueltypes(url: str, limit: int = 30, headless: bool = False):
     finally:
         driver.quit()
 
-#main execution
-if __name__ == "__main__":
 
-    cities = {
-        "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
-        "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
-        "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
-        #"Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
-        #"Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
-        #"Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
-        #"Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
-        #"Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
-        #"Brea": "https://www.gasbuddy.com/gasprices/california/brea",
-        #"Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
-    }
+def flatten_results_for_storage(all_results: dict, run_timestamp: str, run_label: str):
+    rows = []
+    for city, stations in all_results.items():
+        if isinstance(stations, dict) and "error" in stations:
+            rows.append({
+                "run_timestamp": run_timestamp,
+                "run_label": run_label,
+                "city": city,
+                "station_id": None,
+                "station_name": "ERROR",
+                "station_url": None,
+                "address": None,
+                "regular": None,
+                "regular_updated": None,
+                "midgrade": None,
+                "midgrade_updated": None,
+                "premium": None,
+                "premium_updated": None,
+                "diesel": None,
+                "diesel_updated": None,
+                "scrape_error": stations.get("error", ""),
+            })
+            continue
 
-    all_results = {}
+        for s in stations:
+            station_url = s.get("station_url", "")
+            rows.append({
+                "run_timestamp": run_timestamp,
+                "run_label": run_label,
+                "city": city,
+                "station_id": station_id_from_url(station_url) if station_url else None,
+                "station_name": s.get("name", ""),
+                "station_url": station_url or None,
+                "address": s.get("address", "") or None,
+                "regular": s.get("regular"),
+                "regular_updated": s.get("regular_updated", "") or None,
+                "midgrade": s.get("midgrade"),
+                "midgrade_updated": s.get("midgrade_updated", "") or None,
+                "premium": s.get("premium"),
+                "premium_updated": s.get("premium_updated", "") or None,
+                "diesel": s.get("diesel"),
+                "diesel_updated": s.get("diesel_updated", "") or None,
+                "scrape_error": None,
+            })
+    return rows
 
-    for city_name, url in cities.items():
-        print(f"Scraping {city_name}...")
 
-        try:
-            city_data = scrape_all_fueltypes(url, limit=30, headless=False)
-            all_results[city_name] = city_data if city_data else []
-
-            if not city_data:
-                print(f"Skipped {city_name} (no data)")
-
-        except Exception as e:
-            print(f"Error on {city_name}")
-            all_results[city_name] = {"error": str(e)}
-
-    JSON_DIR = "JSON Files"
-    CSV_DIR = "CSV Files"
-
-
-    # Create timestamped filenames
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    json_file = os.path.join(JSON_DIR, f"gas_prices_{ts}.json")
-    csv_file = os.path.join(CSV_DIR, f"gas_prices_{ts}.csv")
-
-    # Save JSON
-    with open(json_file, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
-    print(f"Saved {json_file}")
-
-    # Convert JSON -> CSV (read the same JSON you just wrote)
-    with open(json_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+def write_csv(data: dict, ts_label: str, csv_file: str):
+    seen_station_address = set()
 
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -350,15 +407,23 @@ if __name__ == "__main__":
 
         for city, stations in data.items():
             if isinstance(stations, dict) and "error" in stations:
-                writer.writerow([ts, city, "ERROR", stations.get("error", ""), "", "", "", "", "", "", "", ""])
+                writer.writerow([ts_label, city, "ERROR", stations.get("error", ""), "", "", "", "", "", "", "", ""])
                 continue
 
             for s in stations:
+                station_name = (s.get("name", "") or "").strip()
+                address = (s.get("address", "") or "").strip()
+                if station_name and address:
+                    dedupe_key = (station_name.lower(), address.lower())
+                    if dedupe_key in seen_station_address:
+                        continue
+                    seen_station_address.add(dedupe_key)
+
                 writer.writerow([
-                    ts,
+                    ts_label,
                     city,
-                    s.get("name", ""),
-                    s.get("address", ""),
+                    station_name,
+                    address,
                     s.get("regular", ""),
                     s.get("regular_updated", ""),
                     s.get("midgrade", ""),
@@ -420,24 +485,14 @@ if __name__ == "__main__":
     load_env_file(os.path.join(os.getcwd(), ".env"))
 
     parser = argparse.ArgumentParser(description="Scrape gas prices and upload to Supabase.")
+    parser.add_argument("--no-json", action="store_true", help="Skip JSON export.")
     parser.add_argument("--no-csv", action="store_true", help="Skip CSV export.")
     parser.add_argument("--no-supabase", action="store_true", help="Skip Supabase upload.")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode.")
     parser.add_argument("--limit", type=int, default=30, help="Max stations per city/fuel type.")
     args = parser.parse_args()
 
-    cities = {
-        "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
-        "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
-        "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
-        "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
-        "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
-        "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
-        "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
-        "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
-        "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
-        "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
-    }
+    cities = {name: CITY_URLS[name] for name, enabled in CITY_TOGGLES.items() if enabled}
 
     all_results = {}
 
@@ -466,12 +521,16 @@ if __name__ == "__main__":
     json_file = os.path.join(JSON_DIR, f"gas_prices_{ts}.json")
     csv_file = os.path.join(CSV_DIR, f"gas_prices_{ts}.csv")
 
-    os.makedirs(JSON_DIR, exist_ok=True)
+    write_json_output = ENABLE_JSON_OUTPUT and not args.no_json
+    write_csv_output = ENABLE_CSV_OUTPUT and not args.no_csv
 
-    # Save JSON
-    with open(json_file, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
-    print(f"Saved {json_file}")
+    if write_json_output:
+        os.makedirs(JSON_DIR, exist_ok=True)
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2)
+        print(f"Saved {json_file}")
+    else:
+        print("Skipped JSON export (toggle/flag).")
 
     rows = flatten_results_for_storage(all_results, run_timestamp=run_timestamp, run_label=ts)
     rows = dedupe_rows_by_station_and_address(rows)
@@ -485,9 +544,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Supabase upload failed: {e}")
 
-    if args.no_csv:
-        print("Skipped CSV export (--no-csv).")
-    else:
+    if write_csv_output:
         os.makedirs(CSV_DIR, exist_ok=True)
         write_csv(all_results, ts_label=ts, csv_file=csv_file)
         print(f"Saved {csv_file}")
+    else:
+        print("Skipped CSV export (toggle/flag).")
