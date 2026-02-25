@@ -369,4 +369,125 @@ if __name__ == "__main__":
                     s.get("diesel_updated", ""),
                 ])
 
-    print(f"Saved {csv_file}")
+
+def dedupe_rows_by_station_and_address(rows):
+    deduped = []
+    seen_station_address = set()
+
+    for row in rows:
+        station_name = (row.get("station_name") or "").strip()
+        address = (row.get("address") or "").strip()
+        if not station_name or not address:
+            deduped.append(row)
+            continue
+
+        dedupe_key = (station_name.lower(), address.lower())
+        if dedupe_key in seen_station_address:
+            continue
+
+        row["station_name"] = station_name
+        row["address"] = address
+        seen_station_address.add(dedupe_key)
+        deduped.append(row)
+
+    return deduped
+
+
+def upload_to_supabase(rows):
+    try:
+        from supabase import create_client
+    except ImportError as e:
+        raise RuntimeError("Missing dependency: install with `pip install supabase`") from e
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    table_name = os.getenv("SUPABASE_TABLE", "gas_prices")
+
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set in your environment")
+
+    client = create_client(supabase_url, supabase_key)
+    batch_size = 500
+
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        client.table(table_name).upsert(batch, on_conflict="station_name,address").execute()
+
+#main execution
+if __name__ == "__main__":
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    load_env_file(os.path.join(script_dir, ".env"))
+    load_env_file(os.path.join(os.getcwd(), ".env"))
+
+    parser = argparse.ArgumentParser(description="Scrape gas prices and upload to Supabase.")
+    parser.add_argument("--no-csv", action="store_true", help="Skip CSV export.")
+    parser.add_argument("--no-supabase", action="store_true", help="Skip Supabase upload.")
+    parser.add_argument("--headless", action="store_true", help="Run browser in headless mode.")
+    parser.add_argument("--limit", type=int, default=30, help="Max stations per city/fuel type.")
+    args = parser.parse_args()
+
+    cities = {
+        "La Mirada": "https://www.gasbuddy.com/gasprices/california/la-mirada",
+        "La Habra": "https://www.gasbuddy.com/gasprices/california/la-habra",
+        "Whittier": "https://www.gasbuddy.com/gasprices/california/whittier",
+        "Santa Fe Springs": "https://www.gasbuddy.com/gasprices/california/santa-fe-springs",
+        "Buena Park": "https://www.gasbuddy.com/gasprices/california/buena-park",
+        "Norwalk": "https://www.gasbuddy.com/gasprices/california/norwalk",
+        "Cerritos": "https://www.gasbuddy.com/gasprices/california/cerritos",
+        "Fullerton": "https://www.gasbuddy.com/gasprices/california/fullerton",
+        "Brea": "https://www.gasbuddy.com/gasprices/california/brea",
+        "Anaheim": "https://www.gasbuddy.com/gasprices/california/anaheim",
+    }
+
+    all_results = {}
+
+    for city_name, url in cities.items():
+        print(f"Scraping {city_name}...")
+
+        try:
+            city_data = scrape_all_fueltypes(url, limit=args.limit, headless=args.headless)
+            all_results[city_name] = city_data if city_data else []
+
+            if not city_data:
+                print(f"Skipped {city_name} (no data)")
+
+        except Exception as e:
+            print(f"Error on {city_name}")
+            all_results[city_name] = {"error": str(e)}
+
+    JSON_DIR = "JSON Files"
+    CSV_DIR = "CSV Files"
+
+
+    # Create timestamped filenames
+    run_dt = datetime.now(timezone.utc)
+    ts = run_dt.strftime("%Y-%m-%d_%H-%M-%S")
+    run_timestamp = run_dt.isoformat()
+    json_file = os.path.join(JSON_DIR, f"gas_prices_{ts}.json")
+    csv_file = os.path.join(CSV_DIR, f"gas_prices_{ts}.csv")
+
+    os.makedirs(JSON_DIR, exist_ok=True)
+
+    # Save JSON
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(all_results, f, indent=2)
+    print(f"Saved {json_file}")
+
+    rows = flatten_results_for_storage(all_results, run_timestamp=run_timestamp, run_label=ts)
+    rows = dedupe_rows_by_station_and_address(rows)
+
+    if args.no_supabase:
+        print("Skipped Supabase upload (--no-supabase).")
+    else:
+        try:
+            upload_to_supabase(rows)
+            print(f"Uploaded {len(rows)} rows to Supabase.")
+        except Exception as e:
+            print(f"Supabase upload failed: {e}")
+
+    if args.no_csv:
+        print("Skipped CSV export (--no-csv).")
+    else:
+        os.makedirs(CSV_DIR, exist_ok=True)
+        write_csv(all_results, ts_label=ts, csv_file=csv_file)
+        print(f"Saved {csv_file}")
