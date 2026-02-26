@@ -37,6 +37,7 @@ const BIOLA_COORDS: UserCoords = {
   latitude: 33.9053,
   longitude: -117.9874,
 };
+const DISTANCE_PENALTY_PER_MILE = 0.5;
 
 const fuelLabels: Record<FuelType, string> = {
   regular: "Regular",
@@ -94,6 +95,8 @@ export default function HomeScreen() {
   const [tankSize, setTankSize] = useState<number | null>(null);
   const [fuelEconomy, setFuelEconomy] = useState<number | null>(null);
   const [showVehiclePrompt, setShowVehiclePrompt] = useState(true);
+  const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
+  const [showDrivingInfoForId, setShowDrivingInfoForId] = useState<number | null>(null);
 
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -111,7 +114,7 @@ export default function HomeScreen() {
 
       const drivingPrice =
         price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
-          ? (distanceMiles / fuelEconomy) * price
+          ? (distanceMiles / fuelEconomy) * price + distanceMiles * DISTANCE_PENALTY_PER_MILE
           : null;
 
       const fuelPriceTotal =
@@ -281,29 +284,58 @@ export default function HomeScreen() {
       <ScrollView style={styles.results} contentContainerStyle={styles.resultsContent}>
         {visibleRows.map((row) => (
           <View key={row.id} style={styles.card}>
-            <ThemedText type="defaultSemiBold">{row.station_name}</ThemedText>
-            {row.address ? (
-              <Pressable onPress={() => openInMaps(row.address as string, row.city)}>
-                <ThemedText style={styles.mapLink}>{`${row.address}, ${row.city}`}</ThemedText>
+            <View style={styles.cardTopRow}>
+              <Pressable style={styles.cardLeft} onPress={() => setExpandedStationId(expandedStationId === row.id ? null : row.id)}>
+                <ThemedText type="defaultSemiBold">{row.station_name}</ThemedText>
+                {row.address ? (
+                  <Pressable onPress={() => openInMaps(row.address as string, row.city)}>
+                    <ThemedText style={styles.mapLink}>{`${row.address}, ${row.city}`}</ThemedText>
+                  </Pressable>
+                ) : (
+                  <ThemedText>{row.city}</ThemedText>
+                )}
+                <ThemedText>
+                  Distance: {row.distanceMiles == null ? "N/A" : `${row.distanceMiles.toFixed(2)} mi`}
+                </ThemedText>
+                <ThemedText style={styles.tapHint}>
+                  {expandedStationId === row.id ? "Tap to hide fuel details" : "Tap station for fuel details"}
+                </ThemedText>
               </Pressable>
-            ) : (
-              <ThemedText>{row.city}</ThemedText>
+
+              <View style={styles.cardRight}>
+                <View style={styles.priceBlock}>
+                  <ThemedText style={styles.selectedFuelLabel}>{fuelLabels[selectedFuel]}</ThemedText>
+                  <ThemedText style={styles.selectedPriceLarge}>{money(getPriceForFuel(row, selectedFuel))}</ThemedText>
+                </View>
+                <Pressable
+                  style={styles.priceBlock}
+                  onPress={() => setShowDrivingInfoForId(showDrivingInfoForId === row.id ? null : row.id)}>
+                  <ThemedText style={styles.totalPriceLabel}>Total price</ThemedText>
+                  <ThemedText style={styles.totalPriceLarge}>{money(row.totalPrice)}</ThemedText>
+                </Pressable>
+              </View>
+            </View>
+
+            {expandedStationId === row.id && (
+              <View style={styles.infoBox}>
+                <ThemedText type="defaultSemiBold">Other fuel prices</ThemedText>
+                {(Object.keys(fuelLabels) as FuelType[])
+                  .filter((fuel) => fuel !== selectedFuel)
+                  .map((fuel) => (
+                    <ThemedText key={fuel}>
+                      {fuelLabels[fuel]}: {money(getPriceForFuel(row, fuel))}
+                    </ThemedText>
+                  ))}
+              </View>
             )}
-            <ThemedText style={styles.selectedPrice}>
-              {fuelLabels[selectedFuel]}: {getPriceForFuel(row, selectedFuel) ?? "N/A"}
-            </ThemedText>
-            <ThemedText>
-              Distance: {row.distanceMiles == null ? "N/A" : `${row.distanceMiles.toFixed(2)} mi`}
-            </ThemedText>
-            {sortOrder === "best" && (
-              <>
+
+            {showDrivingInfoForId === row.id && (
+              <View style={styles.infoBubble}>
+                <ThemedText type="defaultSemiBold">Trip cost details</ThemedText>
                 <ThemedText>Driving price: {money(row.drivingPrice)}</ThemedText>
                 <ThemedText>Fuel price total: {money(row.fuelPriceTotal)}</ThemedText>
-                <ThemedText style={styles.totalPrice}>Total price: {money(row.totalPrice)}</ThemedText>
-              </>
+              </View>
             )}
-            <ThemedText>Regular: {row.regular ?? "N/A"} | Midgrade: {row.midgrade ?? "N/A"}</ThemedText>
-            <ThemedText>Premium: {row.premium ?? "N/A"} | Diesel: {row.diesel ?? "N/A"}</ThemedText>
           </View>
         ))}
         {!loading && visibleRows.length === 0 && !errorMessage && (
@@ -399,10 +431,70 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 4,
   },
-  selectedPrice: {
+  cardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  cardLeft: {
+    flex: 1,
+    gap: 4,
+  },
+  cardRight: {
+    minWidth: 140,
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+    gap: 12,
+    flexShrink: 0,
+  },
+  priceBlock: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  selectedFuelLabel: {
+    opacity: 0.8,
+    textAlign: "right",
+  },
+  selectedPriceLarge: {
     color: "#2fbf4a",
     fontWeight: "700",
-    fontSize: 17,
+    fontSize: 26,
+    lineHeight: 30,
+    textAlign: "right",
+  },
+  totalPriceLarge: {
+    fontWeight: "800",
+    fontSize: 26,
+    lineHeight: 30,
+    textAlign: "right",
+  },
+  totalPriceLabel: {
+    textAlign: "right",
+    opacity: 0.8,
+  },
+  tapHint: {
+    opacity: 0.75,
+    fontSize: 12,
+  },
+  infoBox: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+    backgroundColor: "#111827",
+  },
+  infoBubble: {
+    marginTop: 8,
+    alignSelf: "flex-end",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+    backgroundColor: "#0f172a",
+    minWidth: 180,
   },
   totalPrice: {
     fontWeight: "700",
