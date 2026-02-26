@@ -5,18 +5,30 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 
 type FuelType = "regular" | "midgrade" | "premium" | "diesel";
-type SortOrder = "cheapest" | "most_expensive";
+type SortOrder = "cheapest" | "most_expensive" | "closest";
 
 type GasRow = {
   id: number;
   city: string;
   station_name: string;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   regular: number | null;
   midgrade: number | null;
   premium: number | null;
   diesel: number | null;
   updated_at?: string;
+};
+
+type UserCoords = {
+  latitude: number;
+  longitude: number;
+};
+
+const BIOLA_COORDS: UserCoords = {
+  latitude: 33.9053,
+  longitude: -117.9874,
 };
 
 const fuelLabels: Record<FuelType, string> = {
@@ -29,16 +41,36 @@ const fuelLabels: Record<FuelType, string> = {
 const sortLabels: Record<SortOrder, string> = {
   cheapest: "Cheapest",
   most_expensive: "Most expensive",
+  closest: "Closest",
 };
 
 function getPriceForFuel(row: GasRow, fuel: FuelType): number | null {
   return row[fuel];
 }
 
+function toMiles(meters: number): number {
+  return meters * 0.000621371;
+}
+
+function haversineMiles(from: UserCoords, to: UserCoords): number {
+  const r = 6371000;
+  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180;
+  const dLon = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((from.latitude * Math.PI) / 180) *
+      Math.cos((to.latitude * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return toMiles(r * c);
+}
+
 export default function HomeScreen() {
   const [rows, setRows] = useState<GasRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
   const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
 
@@ -48,15 +80,33 @@ export default function HomeScreen() {
 
   const canFetch = useMemo(() => Boolean(supabaseUrl && supabaseAnonKey), [supabaseUrl, supabaseAnonKey]);
   const visibleRows = useMemo(() => {
-    const withPrice = rows.filter((row) => getPriceForFuel(row, selectedFuel) != null);
-    const withoutPrice = rows.filter((row) => getPriceForFuel(row, selectedFuel) == null);
+    const rowsWithDistance = rows.map((row) => {
+      if (!userCoords || row.latitude == null || row.longitude == null) {
+        return { ...row, distanceMiles: null as number | null };
+      }
+      const distanceMiles = haversineMiles(userCoords, {
+        latitude: row.latitude,
+        longitude: row.longitude,
+      });
+      return { ...row, distanceMiles };
+    });
+
+    if (sortOrder === "closest") {
+      const withDistance = rowsWithDistance.filter((row) => row.distanceMiles != null);
+      const withoutDistance = rowsWithDistance.filter((row) => row.distanceMiles == null);
+      const sorted = [...withDistance].sort((a, b) => (a.distanceMiles as number) - (b.distanceMiles as number));
+      return [...sorted, ...withoutDistance];
+    }
+
+    const withPrice = rowsWithDistance.filter((row) => getPriceForFuel(row, selectedFuel) != null);
+    const withoutPrice = rowsWithDistance.filter((row) => getPriceForFuel(row, selectedFuel) == null);
     const sorted = [...withPrice].sort((a, b) => {
       const aPrice = getPriceForFuel(a, selectedFuel) as number;
       const bPrice = getPriceForFuel(b, selectedFuel) as number;
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
     return [...sorted, ...withoutPrice];
-  }, [rows, selectedFuel, sortOrder]);
+  }, [rows, selectedFuel, sortOrder, userCoords]);
 
   const openInMaps = async (address: string, city: string) => {
     const query = encodeURIComponent(`${address}, ${city}`);
@@ -74,7 +124,9 @@ export default function HomeScreen() {
     setErrorMessage("");
 
     try {
-      const query = "select=id,city,station_name,address,regular,midgrade,premium,diesel&order=city.asc,station_name.asc";
+      setUserCoords(BIOLA_COORDS);
+
+      const query = "select=id,city,station_name,address,latitude,longitude,regular,midgrade,premium,diesel&order=city.asc,station_name.asc";
       const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query}`, {
         headers: {
           apikey: supabaseAnonKey,
@@ -87,7 +139,7 @@ export default function HomeScreen() {
         throw new Error(payload?.message ?? "Failed to fetch gas prices.");
       }
 
-      setRows(Array.isArray(payload) ? payload : []);
+      setRows(Array.isArray(payload) ? (payload as GasRow[]) : []);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Request failed.";
       setErrorMessage(message);
@@ -149,6 +201,9 @@ export default function HomeScreen() {
             )}
             <ThemedText style={styles.selectedPrice}>
               {fuelLabels[selectedFuel]}: {getPriceForFuel(row, selectedFuel) ?? "N/A"}
+            </ThemedText>
+            <ThemedText>
+              Distance: {row.distanceMiles == null ? "N/A" : `${row.distanceMiles.toFixed(2)} mi`}
             </ThemedText>
             <ThemedText>Regular: {row.regular ?? "N/A"} | Midgrade: {row.midgrade ?? "N/A"}</ThemedText>
             <ThemedText>Premium: {row.premium ?? "N/A"} | Diesel: {row.diesel ?? "N/A"}</ThemedText>

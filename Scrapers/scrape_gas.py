@@ -1,9 +1,14 @@
 import argparse
+import math
 import os
 import re
 import json
 import csv
+import time
 from datetime import datetime, timezone
+from urllib.error import URLError, HTTPError
+from urllib.parse import quote_plus
+from urllib.request import Request, urlopen
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -38,6 +43,11 @@ ENABLE_DIESEL = True
 ENABLE_UPDATE_TIMES = False
 ENABLE_JSON_OUTPUT = False
 ENABLE_CSV_OUTPUT = False
+ENABLE_GEOCODING = True
+GEOCODE_DELAY_SECONDS = 1.1
+GEOCODE_TIMEOUT_SECONDS = 12
+BIOLA_LATITUDE = 33.9053
+BIOLA_LONGITUDE = -117.9874
 
 # ---------- City toggles ----------
 ENABLE_CITY_LA_MIRADA = True
@@ -349,6 +359,9 @@ def flatten_results_for_storage(all_results: dict, run_timestamp: str, run_label
                 "station_name": "ERROR",
                 "station_url": None,
                 "address": None,
+                "latitude": None,
+                "longitude": None,
+                "distance_from_biola_miles": None,
                 "regular": None,
                 "regular_updated": None,
                 "midgrade": None,
@@ -371,6 +384,9 @@ def flatten_results_for_storage(all_results: dict, run_timestamp: str, run_label
                 "station_name": s.get("name", ""),
                 "station_url": station_url or None,
                 "address": s.get("address", "") or None,
+                "latitude": None,
+                "longitude": None,
+                "distance_from_biola_miles": None,
                 "regular": s.get("regular"),
                 "regular_updated": s.get("regular_updated", "") or None,
                 "midgrade": s.get("midgrade"),
@@ -458,6 +474,78 @@ def dedupe_rows_by_station_and_address(rows):
     return deduped
 
 
+def geocode_address(address: str, city: str):
+    query = f"{address}, {city}, CA"
+    url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={quote_plus(query)}"
+    req = Request(url, headers={"User-Agent": "GasPriceFinder/1.0"})
+
+    try:
+        with urlopen(req, timeout=GEOCODE_TIMEOUT_SECONDS) as resp:
+            payload = json.load(resp)
+    except (HTTPError, URLError, TimeoutError):
+        return None, None
+
+    if not payload:
+        return None, None
+
+    try:
+        lat = float(payload[0]["lat"])
+        lon = float(payload[0]["lon"])
+        return lat, lon
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None, None
+
+
+def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius_miles = 3958.8
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_miles * c
+
+
+def enrich_rows_with_coordinates(rows):
+    if not ENABLE_GEOCODING:
+        return rows
+
+    cache = {}
+    looked_up = 0
+
+    for row in rows:
+        if row.get("scrape_error"):
+            continue
+
+        address = (row.get("address") or "").strip()
+        city = (row.get("city") or "").strip()
+        if not address or not city:
+            continue
+
+        cache_key = (address.lower(), city.lower())
+        if cache_key in cache:
+            lat, lon = cache[cache_key]
+        else:
+            lat, lon = geocode_address(address, city)
+            cache[cache_key] = (lat, lon)
+            looked_up += 1
+            time.sleep(GEOCODE_DELAY_SECONDS)
+
+        if lat is not None and lon is not None:
+            row["latitude"] = lat
+            row["longitude"] = lon
+            row["distance_from_biola_miles"] = haversine_miles(
+                BIOLA_LATITUDE, BIOLA_LONGITUDE, lat, lon
+            )
+
+    print(f"Geocoded {looked_up} unique addresses.")
+    return rows
+
+
 def upload_to_supabase(rows):
     try:
         from supabase import create_client
@@ -475,7 +563,16 @@ def upload_to_supabase(rows):
     batch_size = 500
 
     for i in range(0, len(rows), batch_size):
-        batch = rows[i:i + batch_size]
+        batch = []
+        for row in rows[i:i + batch_size]:
+            payload_row = dict(row)
+            if payload_row.get("latitude") is None:
+                payload_row.pop("latitude", None)
+            if payload_row.get("longitude") is None:
+                payload_row.pop("longitude", None)
+            if payload_row.get("distance_from_biola_miles") is None:
+                payload_row.pop("distance_from_biola_miles", None)
+            batch.append(payload_row)
         client.table(table_name).upsert(batch, on_conflict="station_name,address").execute()
 
 #main execution
@@ -534,6 +631,7 @@ if __name__ == "__main__":
 
     rows = flatten_results_for_storage(all_results, run_timestamp=run_timestamp, run_label=ts)
     rows = dedupe_rows_by_station_and_address(rows)
+    rows = enrich_rows_with_coordinates(rows)
 
     if args.no_supabase:
         print("Skipped Supabase upload (--no-supabase).")
