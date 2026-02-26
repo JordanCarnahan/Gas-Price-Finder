@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 
 type FuelType = "regular" | "midgrade" | "premium" | "diesel";
-type SortOrder = "cheapest" | "most_expensive" | "closest";
+type SortOrder = "best" | "cheapest" | "most_expensive" | "closest";
 
 type GasRow = {
   id: number;
@@ -26,6 +26,13 @@ type UserCoords = {
   longitude: number;
 };
 
+type DisplayRow = GasRow & {
+  distanceMiles: number | null;
+  drivingPrice: number | null;
+  fuelPriceTotal: number | null;
+  totalPrice: number | null;
+};
+
 const BIOLA_COORDS: UserCoords = {
   latitude: 33.9053,
   longitude: -117.9874,
@@ -39,6 +46,7 @@ const fuelLabels: Record<FuelType, string> = {
 };
 
 const sortLabels: Record<SortOrder, string> = {
+  best: "Best",
   cheapest: "Cheapest",
   most_expensive: "Most expensive",
   closest: "Closest",
@@ -66,6 +74,13 @@ function haversineMiles(from: UserCoords, to: UserCoords): number {
   return toMiles(r * c);
 }
 
+function money(value: number | null): string {
+  if (value == null) {
+    return "N/A";
+  }
+  return `$${value.toFixed(2)}`;
+}
+
 export default function HomeScreen() {
   const [rows, setRows] = useState<GasRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,44 +89,92 @@ export default function HomeScreen() {
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
   const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
 
+  const [tankSizeInput, setTankSizeInput] = useState("");
+  const [mpgInput, setMpgInput] = useState("");
+  const [tankSize, setTankSize] = useState<number | null>(null);
+  const [fuelEconomy, setFuelEconomy] = useState<number | null>(null);
+  const [showVehiclePrompt, setShowVehiclePrompt] = useState(true);
+
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const tableName = process.env.EXPO_PUBLIC_SUPABASE_TABLE ?? "gas_prices";
 
   const canFetch = useMemo(() => Boolean(supabaseUrl && supabaseAnonKey), [supabaseUrl, supabaseAnonKey]);
+
   const visibleRows = useMemo(() => {
-    const rowsWithDistance = rows.map((row) => {
-      if (!userCoords || row.latitude == null || row.longitude == null) {
-        return { ...row, distanceMiles: null as number | null };
-      }
-      const distanceMiles = haversineMiles(userCoords, {
-        latitude: row.latitude,
-        longitude: row.longitude,
-      });
-      return { ...row, distanceMiles };
+    const rowsWithMetrics: DisplayRow[] = rows.map((row) => {
+      const price = getPriceForFuel(row, selectedFuel);
+      const distanceMiles =
+        userCoords && row.latitude != null && row.longitude != null
+          ? haversineMiles(userCoords, { latitude: row.latitude, longitude: row.longitude })
+          : null;
+
+      const drivingPrice =
+        price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
+          ? (distanceMiles / fuelEconomy) * price
+          : null;
+
+      const fuelPriceTotal =
+        price != null && tankSize != null && tankSize > 0
+          ? tankSize * price
+          : null;
+
+      // "Best" ranks by total out-of-pocket cost for a fill-up trip.
+      const totalPrice =
+        drivingPrice != null && fuelPriceTotal != null
+          ? fuelPriceTotal + drivingPrice
+          : null;
+
+      return { ...row, distanceMiles, drivingPrice, fuelPriceTotal, totalPrice };
     });
 
     if (sortOrder === "closest") {
-      const withDistance = rowsWithDistance.filter((row) => row.distanceMiles != null);
-      const withoutDistance = rowsWithDistance.filter((row) => row.distanceMiles == null);
+      const withDistance = rowsWithMetrics.filter((row) => row.distanceMiles != null);
+      const withoutDistance = rowsWithMetrics.filter((row) => row.distanceMiles == null);
       const sorted = [...withDistance].sort((a, b) => (a.distanceMiles as number) - (b.distanceMiles as number));
       return [...sorted, ...withoutDistance];
     }
 
-    const withPrice = rowsWithDistance.filter((row) => getPriceForFuel(row, selectedFuel) != null);
-    const withoutPrice = rowsWithDistance.filter((row) => getPriceForFuel(row, selectedFuel) == null);
+    if (sortOrder === "best") {
+      const withTotal = rowsWithMetrics.filter((row) => row.totalPrice != null);
+      const withoutTotal = rowsWithMetrics.filter((row) => row.totalPrice == null);
+      const sorted = [...withTotal].sort((a, b) => (a.totalPrice as number) - (b.totalPrice as number));
+      return [...sorted, ...withoutTotal];
+    }
+
+    const withPrice = rowsWithMetrics.filter((row) => getPriceForFuel(row, selectedFuel) != null);
+    const withoutPrice = rowsWithMetrics.filter((row) => getPriceForFuel(row, selectedFuel) == null);
     const sorted = [...withPrice].sort((a, b) => {
       const aPrice = getPriceForFuel(a, selectedFuel) as number;
       const bPrice = getPriceForFuel(b, selectedFuel) as number;
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
     return [...sorted, ...withoutPrice];
-  }, [rows, selectedFuel, sortOrder, userCoords]);
+  }, [rows, selectedFuel, sortOrder, userCoords, fuelEconomy, tankSize]);
 
   const openInMaps = async (address: string, city: string) => {
     const query = encodeURIComponent(`${address}, ${city}`);
     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
     await Linking.openURL(url);
+  };
+
+  const onSaveVehicle = () => {
+    const parsedTank = Number(tankSizeInput);
+    const parsedMpg = Number(mpgInput);
+
+    if (!Number.isFinite(parsedTank) || parsedTank <= 0) {
+      setErrorMessage("Enter a valid tank size (gallons).");
+      return;
+    }
+    if (!Number.isFinite(parsedMpg) || parsedMpg <= 0) {
+      setErrorMessage("Enter a valid fuel economy (MPG).");
+      return;
+    }
+
+    setTankSize(parsedTank);
+    setFuelEconomy(parsedMpg);
+    setShowVehiclePrompt(false);
+    setErrorMessage("");
   };
 
   const onFetchPress = async () => {
@@ -150,6 +213,33 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <Modal visible={showVehiclePrompt} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <ThemedText type="subtitle">Vehicle Setup</ThemedText>
+            <ThemedText>Tank size (gallons)</ThemedText>
+            <TextInput
+              style={styles.input}
+              keyboardType="decimal-pad"
+              value={tankSizeInput}
+              onChangeText={setTankSizeInput}
+              placeholder="ex: 13.2"
+            />
+            <ThemedText>Fuel economy (MPG)</ThemedText>
+            <TextInput
+              style={styles.input}
+              keyboardType="decimal-pad"
+              value={mpgInput}
+              onChangeText={setMpgInput}
+              placeholder="ex: 28"
+            />
+            <Pressable style={styles.button} onPress={onSaveVehicle}>
+              <ThemedText style={styles.buttonText}>Save</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <ThemedText type="title">Gas Finder</ThemedText>
       <Pressable style={[styles.button, !canFetch && styles.buttonDisabled]} onPress={onFetchPress} disabled={!canFetch || loading}>
         <ThemedText style={styles.buttonText}>Fetch local gas prices</ThemedText>
@@ -205,6 +295,13 @@ export default function HomeScreen() {
             <ThemedText>
               Distance: {row.distanceMiles == null ? "N/A" : `${row.distanceMiles.toFixed(2)} mi`}
             </ThemedText>
+            {sortOrder === "best" && (
+              <>
+                <ThemedText>Driving price: {money(row.drivingPrice)}</ThemedText>
+                <ThemedText>Fuel price total: {money(row.fuelPriceTotal)}</ThemedText>
+                <ThemedText style={styles.totalPrice}>Total price: {money(row.totalPrice)}</ThemedText>
+              </>
+            )}
             <ThemedText>Regular: {row.regular ?? "N/A"} | Midgrade: {row.midgrade ?? "N/A"}</ThemedText>
             <ThemedText>Premium: {row.premium ?? "N/A"} | Diesel: {row.diesel ?? "N/A"}</ThemedText>
           </View>
@@ -223,11 +320,34 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 16,
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#374151",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#6b7280",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: "#ffffff",
+  },
   button: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     backgroundColor: "#1f6feb",
+    alignSelf: "flex-start",
   },
   buttonText: {
     color: "#ffffff",
@@ -283,6 +403,9 @@ const styles = StyleSheet.create({
     color: "#2fbf4a",
     fontWeight: "700",
     fontSize: 17,
+  },
+  totalPrice: {
+    fontWeight: "700",
   },
   mapLink: {
     color: "#ffffff",
