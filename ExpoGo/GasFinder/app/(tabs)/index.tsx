@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -28,6 +29,8 @@ type UserCoords = {
 
 type DisplayRow = GasRow & {
   distanceMiles: number | null;
+  drivingFuelCost: number | null;
+  distancePenalty: number | null;
   drivingPrice: number | null;
   fuelPriceTotal: number | null;
   totalPrice: number | null;
@@ -90,13 +93,14 @@ export default function HomeScreen() {
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
   const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
 
-  const [tankSizeInput, setTankSizeInput] = useState("");
+  const [gallonsNeededInput, setGallonsNeededInput] = useState("");
   const [mpgInput, setMpgInput] = useState("");
-  const [tankSize, setTankSize] = useState<number | null>(null);
+  const [gallonsNeeded, setGallonsNeeded] = useState<number | null>(null);
   const [fuelEconomy, setFuelEconomy] = useState<number | null>(null);
   const [showVehiclePrompt, setShowVehiclePrompt] = useState(true);
   const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
   const [showDrivingInfoForId, setShowDrivingInfoForId] = useState<number | null>(null);
+  const [showFilters, setShowFilters] = useState(true);
 
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -117,9 +121,19 @@ export default function HomeScreen() {
           ? (distanceMiles / fuelEconomy) * price + distanceMiles * DISTANCE_PENALTY_PER_MILE
           : null;
 
+      const drivingFuelCost =
+        price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
+          ? (distanceMiles / fuelEconomy) * price
+          : null;
+
+      const distancePenalty =
+        distanceMiles != null
+          ? distanceMiles * DISTANCE_PENALTY_PER_MILE
+          : null;
+
       const fuelPriceTotal =
-        price != null && tankSize != null && tankSize > 0
-          ? tankSize * price
+        price != null && gallonsNeeded != null && gallonsNeeded > 0
+          ? gallonsNeeded * price
           : null;
 
       // "Best" ranks by total out-of-pocket cost for a fill-up trip.
@@ -128,7 +142,7 @@ export default function HomeScreen() {
           ? fuelPriceTotal + drivingPrice
           : null;
 
-      return { ...row, distanceMiles, drivingPrice, fuelPriceTotal, totalPrice };
+      return { ...row, distanceMiles, drivingFuelCost, distancePenalty, drivingPrice, fuelPriceTotal, totalPrice };
     });
 
     if (sortOrder === "closest") {
@@ -153,7 +167,7 @@ export default function HomeScreen() {
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
     return [...sorted, ...withoutPrice];
-  }, [rows, selectedFuel, sortOrder, userCoords, fuelEconomy, tankSize]);
+  }, [rows, selectedFuel, sortOrder, userCoords, fuelEconomy, gallonsNeeded]);
 
   const openInMaps = async (address: string, city: string) => {
     const query = encodeURIComponent(`${address}, ${city}`);
@@ -162,11 +176,11 @@ export default function HomeScreen() {
   };
 
   const onSaveVehicle = () => {
-    const parsedTank = Number(tankSizeInput);
+    const parsedGallonsNeeded = Number(gallonsNeededInput);
     const parsedMpg = Number(mpgInput);
 
-    if (!Number.isFinite(parsedTank) || parsedTank <= 0) {
-      setErrorMessage("Enter a valid tank size (gallons).");
+    if (!Number.isFinite(parsedGallonsNeeded) || parsedGallonsNeeded <= 0) {
+      setErrorMessage("Enter a valid estimated gallons needed.");
       return;
     }
     if (!Number.isFinite(parsedMpg) || parsedMpg <= 0) {
@@ -174,7 +188,7 @@ export default function HomeScreen() {
       return;
     }
 
-    setTankSize(parsedTank);
+    setGallonsNeeded(parsedGallonsNeeded);
     setFuelEconomy(parsedMpg);
     setShowVehiclePrompt(false);
     setErrorMessage("");
@@ -215,18 +229,19 @@ export default function HomeScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
     <ThemedView style={styles.container}>
       <Modal visible={showVehiclePrompt} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <ThemedText type="subtitle">Vehicle Setup</ThemedText>
-            <ThemedText>Tank size (gallons)</ThemedText>
+            <ThemedText>Estimated gallons needed</ThemedText>
             <TextInput
               style={styles.input}
               keyboardType="decimal-pad"
-              value={tankSizeInput}
-              onChangeText={setTankSizeInput}
-              placeholder="ex: 13.2"
+              value={gallonsNeededInput}
+              onChangeText={setGallonsNeededInput}
+              placeholder="ex: 8.5"
             />
             <ThemedText>Fuel economy (MPG)</ThemedText>
             <TextInput
@@ -243,7 +258,12 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      <ThemedText type="title">Gas Finder</ThemedText>
+      <View style={styles.headerRow}>
+        <ThemedText type="title">Gas Finder</ThemedText>
+        <Pressable style={styles.filtersButton} onPress={() => setShowFilters((v) => !v)}>
+          <ThemedText style={styles.filtersButtonText}>{showFilters ? "Hide Filters" : "Filters"}</ThemedText>
+        </Pressable>
+      </View>
       <Pressable style={[styles.button, !canFetch && styles.buttonDisabled]} onPress={onFetchPress} disabled={!canFetch || loading}>
         <ThemedText style={styles.buttonText}>Fetch local gas prices</ThemedText>
       </Pressable>
@@ -253,35 +273,40 @@ export default function HomeScreen() {
       {loading && <ActivityIndicator />}
       {!!errorMessage && <ThemedText style={styles.error}>{errorMessage}</ThemedText>}
 
-      <View style={styles.controlSection}>
-        <ThemedText type="defaultSemiBold">Fuel type</ThemedText>
-        <View style={styles.chipRow}>
-          {(Object.keys(fuelLabels) as FuelType[]).map((fuel) => (
-            <Pressable
-              key={fuel}
-              onPress={() => setSelectedFuel(fuel)}
-              style={[styles.chip, selectedFuel === fuel && styles.chipActive]}>
-              <ThemedText style={selectedFuel === fuel ? styles.chipTextActive : undefined}>{fuelLabels[fuel]}</ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      {showFilters && (
+        <>
+          <View style={styles.controlSection}>
+            <ThemedText type="defaultSemiBold">Fuel type</ThemedText>
+            <View style={styles.chipRow}>
+              {(Object.keys(fuelLabels) as FuelType[]).map((fuel) => (
+                <Pressable
+                  key={fuel}
+                  onPress={() => setSelectedFuel(fuel)}
+                  style={[styles.chip, selectedFuel === fuel && styles.chipActive]}>
+                  <ThemedText style={selectedFuel === fuel ? styles.chipTextActive : undefined}>{fuelLabels[fuel]}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
 
-      <View style={styles.controlSection}>
-        <ThemedText type="defaultSemiBold">Sort</ThemedText>
-        <View style={styles.chipRow}>
-          {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setSortOrder(option)}
-              style={[styles.chip, sortOrder === option && styles.chipActive]}>
-              <ThemedText style={sortOrder === option ? styles.chipTextActive : undefined}>{sortLabels[option]}</ThemedText>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+          <View style={styles.controlSection}>
+            <ThemedText type="defaultSemiBold">Sort</ThemedText>
+            <View style={styles.chipRow}>
+              {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setSortOrder(option)}
+                  style={[styles.chip, sortOrder === option && styles.chipActive]}>
+                  <ThemedText style={sortOrder === option ? styles.chipTextActive : undefined}>{sortLabels[option]}</ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
 
       <ScrollView style={styles.results} contentContainerStyle={styles.resultsContent}>
+
         {visibleRows.map((row) => (
           <View key={row.id} style={styles.card}>
             <View style={styles.cardTopRow}>
@@ -332,8 +357,16 @@ export default function HomeScreen() {
             {showDrivingInfoForId === row.id && (
               <View style={styles.infoBubble}>
                 <ThemedText type="defaultSemiBold">Trip cost details</ThemedText>
-                <ThemedText>Driving price: {money(row.drivingPrice)}</ThemedText>
-                <ThemedText>Fuel price total: {money(row.fuelPriceTotal)}</ThemedText>
+                <ThemedText>
+                  Fuel price total: {money(getPriceForFuel(row, selectedFuel))} x {gallonsNeeded ?? "N/A"} = {money(row.fuelPriceTotal)}
+                </ThemedText>
+                <ThemedText>
+                  Driving fuel: ({row.distanceMiles == null ? "N/A" : row.distanceMiles.toFixed(2)} / {fuelEconomy ?? "N/A"}) x {money(getPriceForFuel(row, selectedFuel))} = {money(row.drivingFuelCost)}
+                </ThemedText>
+                <ThemedText>
+                  Distance penalty: {row.distanceMiles == null ? "N/A" : row.distanceMiles.toFixed(2)} x $0.50 = {money(row.distancePenalty)}
+                </ThemedText>
+                <ThemedText>Driving price (+ $0.50/mi): {money(row.drivingPrice)}</ThemedText>
               </View>
             )}
           </View>
@@ -343,14 +376,36 @@ export default function HomeScreen() {
         )}
       </ScrollView>
     </ThemedView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     padding: 24,
     gap: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  filtersButton: {
+    borderWidth: 1,
+    borderColor: "#d0d7de",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#111827",
+  },
+  filtersButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
   modalBackdrop: {
     flex: 1,
