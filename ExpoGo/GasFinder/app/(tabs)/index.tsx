@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -91,7 +91,7 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("best");
 
   const [gallonsNeededInput, setGallonsNeededInput] = useState("");
   const [mpgInput, setMpgInput] = useState("");
@@ -194,7 +194,7 @@ export default function HomeScreen() {
     setErrorMessage("");
   };
 
-  const onFetchPress = async () => {
+  const onFetchPress = useCallback(async () => {
     if (!supabaseUrl || !supabaseAnonKey) {
       setErrorMessage("Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.");
       return;
@@ -226,7 +226,14 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabaseUrl, supabaseAnonKey, tableName]);
+
+  useEffect(() => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return;
+    }
+    void onFetchPress();
+  }, [onFetchPress, supabaseUrl, supabaseAnonKey]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -264,48 +271,44 @@ export default function HomeScreen() {
           <ThemedText style={styles.filtersButtonText}>{showFilters ? "Hide Filters" : "Filters"}</ThemedText>
         </Pressable>
       </View>
-      <Pressable style={[styles.button, !canFetch && styles.buttonDisabled]} onPress={onFetchPress} disabled={!canFetch || loading}>
-        <ThemedText style={styles.buttonText}>Fetch local gas prices</ThemedText>
-      </Pressable>
       {!canFetch && (
         <ThemedText style={styles.message}>Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your Expo .env file.</ThemedText>
       )}
       {loading && <ActivityIndicator />}
       {!!errorMessage && <ThemedText style={styles.error}>{errorMessage}</ThemedText>}
 
-      {showFilters && (
-        <>
-          <View style={styles.controlSection}>
-            <ThemedText type="defaultSemiBold">Fuel type</ThemedText>
-            <View style={styles.chipRow}>
-              {(Object.keys(fuelLabels) as FuelType[]).map((fuel) => (
-                <Pressable
-                  key={fuel}
-                  onPress={() => setSelectedFuel(fuel)}
-                  style={[styles.chip, selectedFuel === fuel && styles.chipActive]}>
-                  <ThemedText style={selectedFuel === fuel ? styles.chipTextActive : undefined}>{fuelLabels[fuel]}</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.controlSection}>
-            <ThemedText type="defaultSemiBold">Sort</ThemedText>
-            <View style={styles.chipRow}>
-              {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
-                <Pressable
-                  key={option}
-                  onPress={() => setSortOrder(option)}
-                  style={[styles.chip, sortOrder === option && styles.chipActive]}>
-                  <ThemedText style={sortOrder === option ? styles.chipTextActive : undefined}>{sortLabels[option]}</ThemedText>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        </>
-      )}
-
       <ScrollView style={styles.results} contentContainerStyle={styles.resultsContent}>
+        {showFilters && (
+          <>
+            <View style={styles.controlSection}>
+              <ThemedText type="defaultSemiBold">Fuel type</ThemedText>
+              <View style={styles.chipRow}>
+                {(Object.keys(fuelLabels) as FuelType[]).map((fuel) => (
+                  <Pressable
+                    key={fuel}
+                    onPress={() => setSelectedFuel(fuel)}
+                    style={[styles.chip, selectedFuel === fuel && styles.chipActive]}>
+                    <ThemedText style={selectedFuel === fuel ? styles.chipTextActive : undefined}>{fuelLabels[fuel]}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.controlSection}>
+              <ThemedText type="defaultSemiBold">Sort</ThemedText>
+              <View style={styles.chipRow}>
+                {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
+                  <Pressable
+                    key={option}
+                    onPress={() => setSortOrder(option)}
+                    style={[styles.chip, sortOrder === option && styles.chipActive]}>
+                    <ThemedText style={sortOrder === option ? styles.chipTextActive : undefined}>{sortLabels[option]}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
 
         {visibleRows.map((row) => (
           <View key={row.id} style={styles.card}>
@@ -383,9 +386,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: "#1f2937",
   },
   container: {
     flex: 1,
+    backgroundColor: "#1f2937",
     padding: 24,
     gap: 16,
   },
