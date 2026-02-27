@@ -109,7 +109,9 @@ export default function HomeScreen() {
   const canFetch = useMemo(() => Boolean(supabaseUrl && supabaseAnonKey), [supabaseUrl, supabaseAnonKey]);
 
   const visibleRows = useMemo(() => {
-    const rowsWithMetrics: DisplayRow[] = rows.map((row) => {
+    const rowsWithMetrics: DisplayRow[] = rows
+      .filter((row) => getPriceForFuel(row, selectedFuel) != null)
+      .map((row) => {
       const price = getPriceForFuel(row, selectedFuel);
       const distanceMiles =
         userCoords && row.latitude != null && row.longitude != null
@@ -159,14 +161,12 @@ export default function HomeScreen() {
       return [...sorted, ...withoutTotal];
     }
 
-    const withPrice = rowsWithMetrics.filter((row) => getPriceForFuel(row, selectedFuel) != null);
-    const withoutPrice = rowsWithMetrics.filter((row) => getPriceForFuel(row, selectedFuel) == null);
-    const sorted = [...withPrice].sort((a, b) => {
+    const sorted = [...rowsWithMetrics].sort((a, b) => {
       const aPrice = getPriceForFuel(a, selectedFuel) as number;
       const bPrice = getPriceForFuel(b, selectedFuel) as number;
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
-    return [...sorted, ...withoutPrice];
+    return sorted;
   }, [rows, selectedFuel, sortOrder, userCoords, fuelEconomy, gallonsNeeded]);
 
   const openInMaps = async (address: string, city: string) => {
