@@ -554,7 +554,7 @@ def upload_to_supabase(rows):
 
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
-    table_name = os.getenv("SUPABASE_TABLE", "gas_prices")
+    table_name = os.getenv("SUPABASE_TABLE", "gas_price_history")
 
     if not supabase_url or not supabase_key:
         raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set in your environment")
@@ -573,7 +573,7 @@ def upload_to_supabase(rows):
             if payload_row.get("distance_from_biola_miles") is None:
                 payload_row.pop("distance_from_biola_miles", None)
             batch.append(payload_row)
-        client.table(table_name).upsert(batch, on_conflict="station_name,address").execute()
+        client.table(table_name).insert(batch).execute()
 
 #main execution
 if __name__ == "__main__":
