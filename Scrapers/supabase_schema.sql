@@ -20,6 +20,8 @@ begin
 end
 $$;
 
+drop index if exists public.ux_gas_prices_station_name_address;
+
 create table if not exists public.gas_price_history (
   id bigint generated always as identity primary key,
   run_timestamp timestamptz not null,
@@ -58,36 +60,31 @@ create unique index if not exists ux_gas_price_history_run_station_name_address
   where station_id is null;
 
 create or replace view public.gas_prices as
-with ranked as (
-  select
-    gph.*,
-    row_number() over (
-      partition by coalesce(nullif(gph.station_id, ''), gph.station_name || '|' || coalesce(gph.address, ''))
-      order by gph.run_timestamp desc, gph.id desc
-    ) as row_num
-  from public.gas_price_history gph
+with latest_run as (
+  select max(run_timestamp) as run_timestamp
+  from public.gas_price_history
 )
 select
-  id,
-  run_timestamp,
-  run_label,
-  city,
-  station_id,
-  station_name,
-  station_url,
-  address,
-  latitude,
-  longitude,
-  distance_from_biola_miles,
-  regular,
-  regular_updated,
-  midgrade,
-  midgrade_updated,
-  premium,
-  premium_updated,
-  diesel,
-  diesel_updated,
-  scrape_error,
-  created_at
-from ranked
-where row_num = 1;
+  gph.id,
+  gph.run_timestamp,
+  gph.run_label,
+  gph.city,
+  gph.station_id,
+  gph.station_name,
+  gph.station_url,
+  gph.address,
+  gph.latitude,
+  gph.longitude,
+  gph.distance_from_biola_miles,
+  gph.regular,
+  gph.regular_updated,
+  gph.midgrade,
+  gph.midgrade_updated,
+  gph.premium,
+  gph.premium_updated,
+  gph.diesel,
+  gph.diesel_updated,
+  gph.scrape_error,
+  gph.created_at
+from public.gas_price_history gph
+join latest_run lr on gph.run_timestamp = lr.run_timestamp;
