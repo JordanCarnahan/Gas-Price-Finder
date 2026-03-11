@@ -510,17 +510,101 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return radius_miles * c
 
 
+def chunked(values, size: int):
+    for i in range(0, len(values), size):
+        yield values[i:i + size]
+
+
+def load_existing_coordinates(rows):
+    try:
+        from supabase import create_client
+    except ImportError:
+        return {}, {}
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    table_name = os.getenv("SUPABASE_TABLE", "gas_price_history")
+
+    if not supabase_url or not supabase_key:
+        return {}, {}
+
+    client = create_client(supabase_url, supabase_key)
+    station_coords = {}
+    address_coords = {}
+
+    station_ids = sorted({
+        (row.get("station_id") or "").strip()
+        for row in rows
+        if not row.get("scrape_error") and (row.get("station_id") or "").strip()
+    })
+
+    addresses = sorted({
+        (row.get("address") or "").strip()
+        for row in rows
+        if not row.get("scrape_error") and (row.get("address") or "").strip()
+    })
+
+    select_cols = "station_id,address,city,latitude,longitude,distance_from_biola_miles,run_timestamp"
+
+    for batch in chunked(station_ids, 100):
+        response = (
+            client.table(table_name)
+            .select(select_cols)
+            .in_("station_id", batch)
+            .order("run_timestamp", desc=True)
+            .execute()
+        )
+        for record in response.data or []:
+            station_id = (record.get("station_id") or "").strip()
+            lat = record.get("latitude")
+            lon = record.get("longitude")
+            if not station_id or lat is None or lon is None or station_id in station_coords:
+                continue
+            station_coords[station_id] = (
+                float(lat),
+                float(lon),
+                record.get("distance_from_biola_miles"),
+            )
+
+    for batch in chunked(addresses, 100):
+        response = (
+            client.table(table_name)
+            .select(select_cols)
+            .in_("address", batch)
+            .order("run_timestamp", desc=True)
+            .execute()
+        )
+        for record in response.data or []:
+            address = (record.get("address") or "").strip().lower()
+            city = (record.get("city") or "").strip().lower()
+            lat = record.get("latitude")
+            lon = record.get("longitude")
+            key = (address, city)
+            if not address or not city or lat is None or lon is None or key in address_coords:
+                continue
+            address_coords[key] = (
+                float(lat),
+                float(lon),
+                record.get("distance_from_biola_miles"),
+            )
+
+    return station_coords, address_coords
+
+
 def enrich_rows_with_coordinates(rows):
     if not ENABLE_GEOCODING:
         return rows
 
     cache = {}
+    station_coords, address_coords = load_existing_coordinates(rows)
+    reused = 0
     looked_up = 0
 
     for row in rows:
         if row.get("scrape_error"):
             continue
 
+        station_id = (row.get("station_id") or "").strip()
         address = (row.get("address") or "").strip()
         city = (row.get("city") or "").strip()
         if not address or not city:
@@ -529,19 +613,28 @@ def enrich_rows_with_coordinates(rows):
         cache_key = (address.lower(), city.lower())
         if cache_key in cache:
             lat, lon = cache[cache_key]
+            distance = haversine_miles(BIOLA_LATITUDE, BIOLA_LONGITUDE, lat, lon) if lat is not None and lon is not None else None
+        elif station_id and station_id in station_coords:
+            lat, lon, distance = station_coords[station_id]
+            cache[cache_key] = (lat, lon)
+            reused += 1
+        elif cache_key in address_coords:
+            lat, lon, distance = address_coords[cache_key]
+            cache[cache_key] = (lat, lon)
+            reused += 1
         else:
             lat, lon = geocode_address(address, city)
             cache[cache_key] = (lat, lon)
+            distance = haversine_miles(BIOLA_LATITUDE, BIOLA_LONGITUDE, lat, lon) if lat is not None and lon is not None else None
             looked_up += 1
             time.sleep(GEOCODE_DELAY_SECONDS)
 
         if lat is not None and lon is not None:
             row["latitude"] = lat
             row["longitude"] = lon
-            row["distance_from_biola_miles"] = haversine_miles(
-                BIOLA_LATITUDE, BIOLA_LONGITUDE, lat, lon
-            )
+            row["distance_from_biola_miles"] = distance
 
+    print(f"Reused coordinates for {reused} addresses.")
     print(f"Geocoded {looked_up} unique addresses.")
     return rows
 
