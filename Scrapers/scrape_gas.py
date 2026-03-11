@@ -1,25 +1,75 @@
 import argparse
+import csv
+import json
 import math
 import os
 import re
-import json
-import csv
 import time
 from datetime import datetime, timezone
-from urllib.error import URLError, HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+# ---------- Output paths ----------
+JSON_DIR = "JSON Files"
+CSV_DIR = "CSV Files"
+
+
+# ---------- Runtime toggles ----------
+ENABLE_REGULAR = True
+ENABLE_MIDGRADE = True
+ENABLE_PREMIUM = True
+ENABLE_DIESEL = True
+ENABLE_UPDATE_TIMES = False
+ENABLE_JSON_OUTPUT = False
+ENABLE_CSV_OUTPUT = False
+ENABLE_GEOCODING = True
+
+
+# ---------- Geocoding configuration ----------
+GEOCODE_DELAY_SECONDS = 1.1
+GEOCODE_TIMEOUT_SECONDS = 12
+BIOLA_LATITUDE = 33.9053
+BIOLA_LONGITUDE = -117.9874
+
+
+# ---------- Scrape configuration ----------
+PRICE_RE = re.compile(r"\$\s*(\d+\.\d{2})")
+BLOCKED_RESOURCE_PATTERNS = [
+    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.css", "*.woff*", "*.ttf",
+]
+FUEL_TYPE_VALUES = {
+    "midgrade": "2",
+    "premium": "3",
+    "diesel": "4",
+}
+CSV_HEADERS = [
+    "Run Timestamp",
+    "City",
+    "Station",
+    "Address",
+    "Regular",
+    "Regular Updated",
+    "Midgrade",
+    "Midgrade Updated",
+    "Premium",
+    "Premium Updated",
+    "Diesel",
+    "Diesel Updated",
+]
 
 
 def load_env_file(path: str):
+    """Load simple KEY=VALUE pairs into the process environment once."""
     if not os.path.exists(path):
         return
 
@@ -34,20 +84,6 @@ def load_env_file(path: str):
             if key and key not in os.environ:
                 os.environ[key] = value
 
-
-# ---------- Browser helpers ----------
-ENABLE_REGULAR = True
-ENABLE_MIDGRADE = True
-ENABLE_PREMIUM = True
-ENABLE_DIESEL = True
-ENABLE_UPDATE_TIMES = False
-ENABLE_JSON_OUTPUT = False
-ENABLE_CSV_OUTPUT = False
-ENABLE_GEOCODING = True
-GEOCODE_DELAY_SECONDS = 1.1
-GEOCODE_TIMEOUT_SECONDS = 12
-BIOLA_LATITUDE = 33.9053
-BIOLA_LONGITUDE = -117.9874
 
 # ---------- City toggles ----------
 ENABLE_CITY_LA_MIRADA = True
@@ -87,6 +123,7 @@ CITY_TOGGLES = {
     "Anaheim": ENABLE_CITY_ANAHEIM,
 }
 
+# ---------- Address parsing heuristics ----------
 STREET_SUFFIXES = (
     "st", "street", "ave", "avenue", "blvd", "boulevard", "rd", "road",
     "dr", "drive", "ln", "lane", "ct", "court", "pl", "place", "way",
@@ -97,7 +134,9 @@ bad_address_phrases = (
     "top ", "best gas", "gas prices", "cheap fuel", "stations in", "in "
 )
 
+
 def looks_like_address(line: str) -> bool:
+    """Heuristically identify address lines inside a GasBuddy station card."""
     s = (line or "").strip()
     if not s:
         return False
@@ -117,7 +156,9 @@ def looks_like_address(line: str) -> bool:
     return any(tok in STREET_SUFFIXES for tok in tokens)
 
 
+# ---------- Browser helpers ----------
 def city_has_stations(driver, timeout: int = 6) -> bool:
+    """Return True once at least one station link is present on the page."""
     try:
         WebDriverWait(driver, timeout).until(
             lambda d: len(d.find_elements(By.CSS_SELECTOR, 'a[href^="/station/"]')) > 0
@@ -126,7 +167,9 @@ def city_has_stations(driver, timeout: int = 6) -> bool:
     except Exception:
         return False
 
+
 def make_driver(headless: bool = False) -> webdriver.Chrome:
+    """Create a Chrome driver with the viewport used by the scraper."""
     opts = Options()
     if headless:
         opts.add_argument("--headless=new")
@@ -135,7 +178,7 @@ def make_driver(headless: bool = False) -> webdriver.Chrome:
 
 
 def first_price_text(driver) -> str:
-    # Find any visible element starting with "$"
+    """Read the first visible price-like string from the current page."""
     prices = driver.find_elements(By.XPATH, "//*[starts-with(normalize-space(.), '$')]")
     for p in prices:
         t = p.text.strip()
@@ -143,15 +186,14 @@ def first_price_text(driver) -> str:
             return t
     return ""
 
+
 def select_fueltype_and_wait(driver, value: str, timeout: int = 15):
+    """Switch the GasBuddy fuel selector and wait for station data to be ready."""
     wait = WebDriverWait(driver, timeout)
 
-    # Ensure the select exists
     wait.until(EC.presence_of_element_located((By.ID, "fuelType")))
-
     before = first_price_text(driver)
 
-    # Set value via JS + fire change
     driver.execute_script(
         """
         const sel = document.getElementById('fuelType');
@@ -161,13 +203,9 @@ def select_fueltype_and_wait(driver, value: str, timeout: int = 15):
         value
     )
 
-    # Wait until the select reflects the new value
     wait.until(lambda d: d.execute_script("return document.getElementById('fuelType').value") == value)
 
-    # Now wait for data to be present.
-    # If we were already on this fuel type, prices may NOT change, so we accept "prices exist".
     def ready(d):
-        # station links present OR a price exists
         has_station = len(d.find_elements(By.CSS_SELECTOR, 'a[href^="/station/"]')) > 0
         fp = first_price_text(d)
         has_price = fp != ""
@@ -177,15 +215,9 @@ def select_fueltype_and_wait(driver, value: str, timeout: int = 15):
     wait.until(ready)
 
 
-# ---------- Scraping logic ----------
-price_re = re.compile(r"\$\s*(\d+\.\d{2})")
-
-
+# ---------- Scraping ----------
 def find_station_card(station_link_el):
-    """
-    Given the <a href="/station/..."> element, find the smallest ancestor div
-    that represents exactly one station entry (one station link).
-    """
+    """Return the closest ancestor div that appears to contain a single station row."""
     ancestors = station_link_el.find_elements(By.XPATH, "./ancestor::div[position()<=12]")
 
     for cand in ancestors:
@@ -199,17 +231,12 @@ def find_station_card(station_link_el):
 
 
 def scrape_city_page_current_dom(driver, limit: int = 30):
-    """
-    Scrapes whatever fuel type is currently selected on the page.
-    Returns a list of station dicts with name, station_url, price, address, updated.
-    """
-
+    """Scrape the currently selected fuel type from the loaded city page."""
     try:
         WebDriverWait(driver, 10).until(
             lambda d: len(d.find_elements(By.CSS_SELECTOR, 'a[href^="/station/"]')) > 0
         )
     except Exception:
-        # No stations on this page
         return []
 
     links = driver.find_elements(By.CSS_SELECTOR, 'a[href^="/station/"]')
@@ -232,20 +259,17 @@ def scrape_city_page_current_dom(driver, limit: int = 30):
 
         text = (card.get_attribute("innerText") or "").strip()
 
-        m = price_re.search(text)
+        m = PRICE_RE.search(text)
         price = float(m.group(1)) if m else None
 
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
-        # Address
         address = ""
         for ln in lines:
             if looks_like_address(ln):
                 address = ln
                 break
 
-
-        # Updated time
         updated = ""
         for ln in lines:
             if re.search(r"\bago\b", ln, re.IGNORECASE):
@@ -266,11 +290,14 @@ def scrape_city_page_current_dom(driver, limit: int = 30):
 
     return results
 
+
 def station_id_from_url(u: str) -> str:
+    """Extract the GasBuddy station id from the canonical station URL."""
     return u.rstrip("/").split("/")[-1]
 
 
 def combine_by_station(regular, midgrade, premium, diesel, include_updates=True):
+    """Merge per-fuel scrape results into one row per station."""
     combined = {}
 
     for grade, rows in [
@@ -296,13 +323,33 @@ def combine_by_station(regular, midgrade, premium, diesel, include_updates=True)
     return list(combined.values())
 
 
+def scrape_enabled_fuel_types(driver, limit: int):
+    """Scrape each enabled fuel type from the current city page."""
+    regular_data = []
+    midgrade_data = []
+    premium_data = []
+    diesel_data = []
+
+    if ENABLE_REGULAR:
+        regular_data = scrape_city_page_current_dom(driver, limit=limit)
+    if ENABLE_MIDGRADE:
+        select_fueltype_and_wait(driver, FUEL_TYPE_VALUES["midgrade"])
+        midgrade_data = scrape_city_page_current_dom(driver, limit=limit)
+    if ENABLE_PREMIUM:
+        select_fueltype_and_wait(driver, FUEL_TYPE_VALUES["premium"])
+        premium_data = scrape_city_page_current_dom(driver, limit=limit)
+    if ENABLE_DIESEL:
+        select_fueltype_and_wait(driver, FUEL_TYPE_VALUES["diesel"])
+        diesel_data = scrape_city_page_current_dom(driver, limit=limit)
+
+    return regular_data, midgrade_data, premium_data, diesel_data
+
+
 def scrape_all_fueltypes(url: str, limit: int = 30, headless: bool = False):
+    """Scrape all enabled fuel types for a single city URL."""
     driver = make_driver(headless=headless)
 
-    driver.execute_cdp_cmd(
-        "Network.setBlockedURLs",
-        {"urls": ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.css", "*.woff*", "*.ttf"]}
-    )
+    driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": BLOCKED_RESOURCE_PATTERNS})
     driver.execute_cdp_cmd("Network.enable", {})
 
     try:
@@ -311,29 +358,7 @@ def scrape_all_fueltypes(url: str, limit: int = 30, headless: bool = False):
         if not city_has_stations(driver):
             return []
 
-        regular_data = []
-        midgrade_data = []
-        premium_data = []
-        diesel_data = []
-
-        # Regular (default)
-        if ENABLE_REGULAR:
-            regular_data = scrape_city_page_current_dom(driver, limit=limit)
-
-        # Midgrade
-        if ENABLE_MIDGRADE:
-            select_fueltype_and_wait(driver, "2")
-            midgrade_data = scrape_city_page_current_dom(driver, limit=limit)
-
-        # Premium
-        if ENABLE_PREMIUM:
-            select_fueltype_and_wait(driver, "3")
-            premium_data = scrape_city_page_current_dom(driver, limit=limit)
-
-        # Diesel
-        if ENABLE_DIESEL:
-            select_fueltype_and_wait(driver, "4")
-            diesel_data = scrape_city_page_current_dom(driver, limit=limit)
+        regular_data, midgrade_data, premium_data, diesel_data = scrape_enabled_fuel_types(driver, limit)
 
         return combine_by_station(
             regular_data,
@@ -347,79 +372,78 @@ def scrape_all_fueltypes(url: str, limit: int = 30, headless: bool = False):
         driver.quit()
 
 
+# ---------- Row shaping ----------
+def build_error_row(city: str, run_timestamp: str, run_label: str, error: str):
+    """Represent a city-level scrape failure in the storage schema."""
+    return {
+        "run_timestamp": run_timestamp,
+        "run_label": run_label,
+        "city": city,
+        "station_id": None,
+        "station_name": "ERROR",
+        "station_url": None,
+        "address": None,
+        "latitude": None,
+        "longitude": None,
+        "distance_from_biola_miles": None,
+        "regular": None,
+        "regular_updated": None,
+        "midgrade": None,
+        "midgrade_updated": None,
+        "premium": None,
+        "premium_updated": None,
+        "diesel": None,
+        "diesel_updated": None,
+        "scrape_error": error,
+    }
+
+
+def build_storage_row(city: str, station: dict, run_timestamp: str, run_label: str):
+    """Convert a scraped station result into the Supabase/history row shape."""
+    station_url = station.get("station_url", "")
+    return {
+        "run_timestamp": run_timestamp,
+        "run_label": run_label,
+        "city": city,
+        "station_id": station_id_from_url(station_url) if station_url else None,
+        "station_name": station.get("name", ""),
+        "station_url": station_url or None,
+        "address": station.get("address", "") or None,
+        "latitude": None,
+        "longitude": None,
+        "distance_from_biola_miles": None,
+        "regular": station.get("regular"),
+        "regular_updated": station.get("regular_updated", "") or None,
+        "midgrade": station.get("midgrade"),
+        "midgrade_updated": station.get("midgrade_updated", "") or None,
+        "premium": station.get("premium"),
+        "premium_updated": station.get("premium_updated", "") or None,
+        "diesel": station.get("diesel"),
+        "diesel_updated": station.get("diesel_updated", "") or None,
+        "scrape_error": None,
+    }
+
+
 def flatten_results_for_storage(all_results: dict, run_timestamp: str, run_label: str):
+    """Flatten city-grouped scrape results into a list of storage rows."""
     rows = []
     for city, stations in all_results.items():
         if isinstance(stations, dict) and "error" in stations:
-            rows.append({
-                "run_timestamp": run_timestamp,
-                "run_label": run_label,
-                "city": city,
-                "station_id": None,
-                "station_name": "ERROR",
-                "station_url": None,
-                "address": None,
-                "latitude": None,
-                "longitude": None,
-                "distance_from_biola_miles": None,
-                "regular": None,
-                "regular_updated": None,
-                "midgrade": None,
-                "midgrade_updated": None,
-                "premium": None,
-                "premium_updated": None,
-                "diesel": None,
-                "diesel_updated": None,
-                "scrape_error": stations.get("error", ""),
-            })
+            rows.append(build_error_row(city, run_timestamp, run_label, stations.get("error", "")))
             continue
 
-        for s in stations:
-            station_url = s.get("station_url", "")
-            rows.append({
-                "run_timestamp": run_timestamp,
-                "run_label": run_label,
-                "city": city,
-                "station_id": station_id_from_url(station_url) if station_url else None,
-                "station_name": s.get("name", ""),
-                "station_url": station_url or None,
-                "address": s.get("address", "") or None,
-                "latitude": None,
-                "longitude": None,
-                "distance_from_biola_miles": None,
-                "regular": s.get("regular"),
-                "regular_updated": s.get("regular_updated", "") or None,
-                "midgrade": s.get("midgrade"),
-                "midgrade_updated": s.get("midgrade_updated", "") or None,
-                "premium": s.get("premium"),
-                "premium_updated": s.get("premium_updated", "") or None,
-                "diesel": s.get("diesel"),
-                "diesel_updated": s.get("diesel_updated", "") or None,
-                "scrape_error": None,
-            })
+        for station in stations:
+            rows.append(build_storage_row(city, station, run_timestamp, run_label))
     return rows
 
 
 def write_csv(data: dict, ts_label: str, csv_file: str):
+    """Write the most recent scrape results to a flat CSV export."""
     seen_station_address = set()
 
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-
-        writer.writerow([
-            "Run Timestamp",
-            "City",
-            "Station",
-            "Address",
-            "Regular",
-            "Regular Updated",
-            "Midgrade",
-            "Midgrade Updated",
-            "Premium",
-            "Premium Updated",
-            "Diesel",
-            "Diesel Updated",
-        ])
+        writer.writerow(CSV_HEADERS)
 
         for city, stations in data.items():
             if isinstance(stations, dict) and "error" in stations:
@@ -452,6 +476,7 @@ def write_csv(data: dict, ts_label: str, csv_file: str):
 
 
 def dedupe_rows_by_station_and_address(rows):
+    """Drop duplicate station/address pairs before storage or export."""
     deduped = []
     seen_station_address = set()
 
@@ -474,7 +499,9 @@ def dedupe_rows_by_station_and_address(rows):
     return deduped
 
 
+# ---------- Geocoding and coordinate reuse ----------
 def geocode_address(address: str, city: str):
+    """Resolve a station address to coordinates via Nominatim."""
     query = f"{address}, {city}, CA"
     url = f"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={quote_plus(query)}"
     req = Request(url, headers={"User-Agent": "GasPriceFinder/1.0"})
@@ -497,6 +524,7 @@ def geocode_address(address: str, city: str):
 
 
 def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compute straight-line distance between two coordinates in miles."""
     radius_miles = 3958.8
     d_lat = math.radians(lat2 - lat1)
     d_lon = math.radians(lon2 - lon1)
@@ -511,11 +539,13 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
 
 
 def chunked(values, size: int):
+    """Yield fixed-size slices from a sequence for batched API calls."""
     for i in range(0, len(values), size):
         yield values[i:i + size]
 
 
 def load_existing_coordinates(rows):
+    """Load known coordinates from Supabase so repeat scrapes skip geocoding."""
     try:
         from supabase import create_client
     except ImportError:
@@ -592,6 +622,7 @@ def load_existing_coordinates(rows):
 
 
 def enrich_rows_with_coordinates(rows):
+    """Attach coordinates to rows, reusing Supabase history when available."""
     if not ENABLE_GEOCODING:
         return rows
 
@@ -639,7 +670,9 @@ def enrich_rows_with_coordinates(rows):
     return rows
 
 
+# ---------- Supabase persistence ----------
 def upload_to_supabase(rows):
+    """Insert append-only history rows into Supabase in batches."""
     try:
         from supabase import create_client
     except ImportError as e:
@@ -668,64 +701,104 @@ def upload_to_supabase(rows):
             batch.append(payload_row)
         client.table(table_name).insert(batch).execute()
 
-#main execution
-if __name__ == "__main__":
-    started_at = time.perf_counter()
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    load_env_file(os.path.join(script_dir, ".env"))
-    load_env_file(os.path.join(os.getcwd(), ".env"))
 
+# ---------- Script orchestration ----------
+def parse_args():
+    """Parse CLI flags for local exports, uploads, and browser behavior."""
     parser = argparse.ArgumentParser(description="Scrape gas prices and upload to Supabase.")
     parser.add_argument("--no-json", action="store_true", help="Skip JSON export.")
     parser.add_argument("--no-csv", action="store_true", help="Skip CSV export.")
     parser.add_argument("--no-supabase", action="store_true", help="Skip Supabase upload.")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode.")
     parser.add_argument("--limit", type=int, default=30, help="Max stations per city/fuel type.")
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    cities = {name: CITY_URLS[name] for name, enabled in CITY_TOGGLES.items() if enabled}
 
+def get_enabled_cities():
+    """Return only the cities that are currently enabled by the toggles above."""
+    return {name: CITY_URLS[name] for name, enabled in CITY_TOGGLES.items() if enabled}
+
+
+def scrape_enabled_cities(limit: int, headless: bool):
+    """Scrape all enabled city pages and keep city-level failures in the result set."""
     all_results = {}
-
-    for city_name, url in cities.items():
+    for city_name, url in get_enabled_cities().items():
         print(f"Scraping {city_name}...")
-
         try:
-            city_data = scrape_all_fueltypes(url, limit=args.limit, headless=args.headless)
+            city_data = scrape_all_fueltypes(url, limit=limit, headless=headless)
             all_results[city_name] = city_data if city_data else []
-
             if not city_data:
                 print(f"Skipped {city_name} (no data)")
-
         except Exception as e:
             print(f"Error on {city_name}")
             all_results[city_name] = {"error": str(e)}
-
-    JSON_DIR = "JSON Files"
-    CSV_DIR = "CSV Files"
+    return all_results
 
 
-    # Create timestamped filenames
+def build_run_metadata():
+    """Create the timestamp values and filenames for one scraper run."""
     run_dt = datetime.now(timezone.utc)
     ts = run_dt.strftime("%Y-%m-%d_%H-%M-%S")
-    run_timestamp = run_dt.isoformat()
-    json_file = os.path.join(JSON_DIR, f"gas_prices_{ts}.json")
-    csv_file = os.path.join(CSV_DIR, f"gas_prices_{ts}.csv")
+    return {
+        "run_label": ts,
+        "run_timestamp": run_dt.isoformat(),
+        "json_file": os.path.join(JSON_DIR, f"gas_prices_{ts}.json"),
+        "csv_file": os.path.join(CSV_DIR, f"gas_prices_{ts}.csv"),
+    }
 
-    write_json_output = ENABLE_JSON_OUTPUT and not args.no_json
-    write_csv_output = ENABLE_CSV_OUTPUT and not args.no_csv
 
-    if write_json_output:
-        os.makedirs(JSON_DIR, exist_ok=True)
-        with open(json_file, "w", encoding="utf-8") as f:
-            json.dump(all_results, f, indent=2)
-        print(f"Saved {json_file}")
-    else:
+def maybe_write_json(all_results: dict, json_file: str, should_write: bool):
+    """Write raw grouped scrape output when JSON export is enabled."""
+    if not should_write:
         print("Skipped JSON export (toggle/flag).")
+        return
 
-    rows = flatten_results_for_storage(all_results, run_timestamp=run_timestamp, run_label=ts)
+    os.makedirs(JSON_DIR, exist_ok=True)
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(all_results, f, indent=2)
+    print(f"Saved {json_file}")
+
+
+def maybe_write_csv(all_results: dict, run_label: str, csv_file: str, should_write: bool):
+    """Write the flat CSV export when CSV output is enabled."""
+    if not should_write:
+        print("Skipped CSV export (toggle/flag).")
+        return
+
+    os.makedirs(CSV_DIR, exist_ok=True)
+    write_csv(all_results, ts_label=run_label, csv_file=csv_file)
+    print(f"Saved {csv_file}")
+
+
+def process_rows_for_storage(all_results: dict, run_timestamp: str, run_label: str):
+    """Flatten, dedupe, and enrich rows before inserting them into Supabase."""
+    rows = flatten_results_for_storage(all_results, run_timestamp=run_timestamp, run_label=run_label)
     rows = dedupe_rows_by_station_and_address(rows)
-    rows = enrich_rows_with_coordinates(rows)
+    return enrich_rows_with_coordinates(rows)
+
+
+def main():
+    """Run one full scrape, optional exports, optional Supabase upload, and timing."""
+    started_at = time.perf_counter()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    load_env_file(os.path.join(script_dir, ".env"))
+    load_env_file(os.path.join(os.getcwd(), ".env"))
+
+    args = parse_args()
+    all_results = scrape_enabled_cities(limit=args.limit, headless=args.headless)
+    run_meta = build_run_metadata()
+
+    maybe_write_json(
+        all_results,
+        run_meta["json_file"],
+        ENABLE_JSON_OUTPUT and not args.no_json,
+    )
+
+    rows = process_rows_for_storage(
+        all_results,
+        run_timestamp=run_meta["run_timestamp"],
+        run_label=run_meta["run_label"],
+    )
 
     if args.no_supabase:
         print("Skipped Supabase upload (--no-supabase).")
@@ -736,12 +809,16 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Supabase upload failed: {e}")
 
-    if write_csv_output:
-        os.makedirs(CSV_DIR, exist_ok=True)
-        write_csv(all_results, ts_label=ts, csv_file=csv_file)
-        print(f"Saved {csv_file}")
-    else:
-        print("Skipped CSV export (toggle/flag).")
+    maybe_write_csv(
+        all_results,
+        run_meta["run_label"],
+        run_meta["csv_file"],
+        ENABLE_CSV_OUTPUT and not args.no_csv,
+    )
 
     elapsed_seconds = time.perf_counter() - started_at
     print(f"Scraper completed in {elapsed_seconds:.2f} seconds.")
+
+
+if __name__ == "__main__":
+    main()
