@@ -670,6 +670,7 @@ def upload_to_supabase(rows):
 
 #main execution
 if __name__ == "__main__":
+    started_at = time.perf_counter()
     script_dir = os.path.dirname(os.path.abspath(__file__))
     load_env_file(os.path.join(script_dir, ".env"))
     load_env_file(os.path.join(os.getcwd(), ".env"))
@@ -741,3 +742,6 @@ if __name__ == "__main__":
         print(f"Saved {csv_file}")
     else:
         print("Skipped CSV export (toggle/flag).")
+
+    elapsed_seconds = time.perf_counter() - started_at
+    print(f"Scraper completed in {elapsed_seconds:.2f} seconds.")
