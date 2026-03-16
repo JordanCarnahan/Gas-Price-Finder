@@ -219,15 +219,26 @@ def select_fueltype_and_wait(driver, value: str, timeout: int = 15):
 def find_station_card(station_link_el):
     """Return the closest ancestor div that appears to contain a single station row."""
     ancestors = station_link_el.find_elements(By.XPATH, "./ancestor::div[position()<=12]")
+    station_href = station_link_el.get_attribute("href")
+    station_name = (station_link_el.text or "").strip()
 
     for cand in ancestors:
         links = cand.find_elements(By.CSS_SELECTOR, 'a[href^="/station/"]')
         if len(links) == 1:
+            link_href = links[0].get_attribute("href")
+            link_name = (links[0].text or "").strip()
+            if station_href and link_href != station_href:
+                continue
+            if station_name and link_name and link_name != station_name:
+                continue
+
             txt = (cand.get_attribute("innerText") or "").strip()
-            if "$" in txt and len(txt) < 1200:
+            price_matches = PRICE_RE.findall(txt)
+            address_lines = [ln for ln in txt.splitlines() if looks_like_address(ln)]
+            if len(price_matches) == 1 and len(address_lines) <= 1 and len(txt) < 1200:
                 return cand
 
-    return ancestors[0] if ancestors else None
+    return None
 
 
 def scrape_city_page_current_dom(driver, limit: int = 30):
