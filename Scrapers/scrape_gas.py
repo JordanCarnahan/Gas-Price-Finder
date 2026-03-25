@@ -14,6 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
@@ -29,7 +30,7 @@ ENABLE_REGULAR = True
 ENABLE_MIDGRADE = True
 ENABLE_PREMIUM = True
 ENABLE_DIESEL = True
-ENABLE_UPDATE_TIMES = False
+ENABLE_UPDATE_TIMES = True
 ENABLE_JSON_OUTPUT = False
 ENABLE_CSV_OUTPUT = False
 ENABLE_GEOCODING = True
@@ -134,6 +135,11 @@ bad_address_phrases = (
     "top ", "best gas", "gas prices", "cheap fuel", "stations in", "in "
 )
 
+UPDATE_TIME_RE = re.compile(
+    r"(\d+\s*(?:sec|secs|second|seconds|min|mins|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+ago)",
+    re.IGNORECASE,
+)
+
 
 def looks_like_address(line: str) -> bool:
     """Heuristically identify address lines inside a GasBuddy station card."""
@@ -154,6 +160,36 @@ def looks_like_address(line: str) -> bool:
     # should contain a common street suffix
     tokens = re.findall(r"[a-zA-Z]+", low)
     return any(tok in STREET_SUFFIXES for tok in tokens)
+
+
+def extract_relative_update(text: str) -> str:
+    """Return only the relative time phrase from a text snippet."""
+    s = (text or "").strip()
+    if not s:
+        return ""
+
+    match = UPDATE_TIME_RE.search(s.replace("\n", " "))
+    return match.group(1) if match else ""
+
+
+def extract_card_update(card) -> str:
+    """Read only the station card's posted-time element, excluding reporter username text."""
+    selectors = [
+        '[class*="ReportedBy-module__postedTime"]',
+        '[data-testid="posted-time"]',
+    ]
+
+    for selector in selectors:
+        try:
+            posted_time = card.find_element(By.CSS_SELECTOR, selector)
+        except NoSuchElementException:
+            continue
+
+        cleaned = extract_relative_update(posted_time.text)
+        if cleaned:
+            return cleaned
+
+    return ""
 
 
 # ---------- Browser helpers ----------
@@ -281,11 +317,7 @@ def scrape_city_page_current_dom(driver, limit: int = 30):
                 address = ln
                 break
 
-        updated = ""
-        for ln in lines:
-            if re.search(r"\bago\b", ln, re.IGNORECASE):
-                updated = ln
-                break
+        updated = extract_card_update(card)
 
         if price is not None:
             results.append({
