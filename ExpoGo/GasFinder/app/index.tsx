@@ -42,7 +42,9 @@ export default function SplashScreen() {
               </Text>
             </View>
 
-            <Pressable style={styles.ctaButton} onPress={() => router.replace('/(tabs)')}>
+            <Pressable
+              style={styles.ctaButton}
+              onPress={() => router.replace('/fuel-configuration')}>
               <Text style={styles.ctaLabel}>START NAVIGATING</Text>
               <Ionicons name="arrow-forward" size={20} color="#442100" />
             </Pressable>

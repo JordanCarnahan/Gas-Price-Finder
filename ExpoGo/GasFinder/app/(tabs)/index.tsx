@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useRouter } from 'expo-router';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KineticRoadwayBackground } from "@/components/kinetic-roadway-background";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useVehicleConfig } from '@/hooks/use-vehicle-config';
 
 type FuelType = "regular" | "midgrade" | "premium" | "diesel";
 type SortOrder = "best" | "cheapest" | "most_expensive" | "closest";
@@ -346,18 +348,14 @@ function StationHistoryGraph({ points }: { points: GraphPoint[] }) {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [rows, setRows] = useState<GasRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
   const [sortOrder, setSortOrder] = useState<SortOrder>("best");
-
-  const [gallonsNeededInput, setGallonsNeededInput] = useState("");
-  const [mpgInput, setMpgInput] = useState("");
-  const [gallonsNeeded, setGallonsNeeded] = useState<number | null>(null);
-  const [fuelEconomy, setFuelEconomy] = useState<number | null>(null);
-  const [showVehiclePrompt, setShowVehiclePrompt] = useState(true);
+  const { fuelEconomy, gallonsNeeded, isConfigured } = useVehicleConfig();
   const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
   const [showDrivingInfoForId, setShowDrivingInfoForId] = useState<number | null>(null);
   const [shownGraphStationKey, setShownGraphStationKey] = useState<string | null>(null);
@@ -438,25 +436,6 @@ export default function HomeScreen() {
     await Linking.openURL(url);
   };
 
-  const onSaveVehicle = () => {
-    const parsedGallonsNeeded = Number(gallonsNeededInput);
-    const parsedMpg = Number(mpgInput);
-
-    if (!Number.isFinite(parsedGallonsNeeded) || parsedGallonsNeeded <= 0) {
-      setErrorMessage("Enter a valid estimated gallons needed.");
-      return;
-    }
-    if (!Number.isFinite(parsedMpg) || parsedMpg <= 0) {
-      setErrorMessage("Enter a valid fuel economy (MPG).");
-      return;
-    }
-
-    setGallonsNeeded(parsedGallonsNeeded);
-    setFuelEconomy(parsedMpg);
-    setShowVehiclePrompt(false);
-    setErrorMessage("");
-  };
-
   const onFetchPress = useCallback(async () => {
     if (!supabaseUrl || !supabaseAnonKey) {
       setErrorMessage("Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.");
@@ -480,7 +459,17 @@ export default function HomeScreen() {
 
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.message ?? "Failed to fetch gas prices.");
+        const apiMessage =
+          typeof payload?.message === "string" ? payload.message : "Failed to fetch gas prices.";
+        const missingTableMatch = apiMessage.match(/table\s+'public\.([^']+)'/i);
+
+        if (missingTableMatch) {
+          throw new Error(
+            `Supabase table "${missingTableMatch[1]}" was not found. Check EXPO_PUBLIC_SUPABASE_TABLE in your .env file.`
+          );
+        }
+
+        throw new Error(apiMessage);
       }
 
       setRows(Array.isArray(payload) ? (payload as GasRow[]) : []);
@@ -493,11 +482,16 @@ export default function HomeScreen() {
   }, [supabaseUrl, supabaseAnonKey, tableName]);
 
   useEffect(() => {
+    if (!isConfigured) {
+      router.replace('/fuel-configuration');
+      return;
+    }
+
     if (!supabaseUrl || !supabaseAnonKey) {
       return;
     }
     void onFetchPress();
-  }, [onFetchPress, supabaseUrl, supabaseAnonKey]);
+  }, [isConfigured, onFetchPress, router, supabaseUrl, supabaseAnonKey]);
 
   const fetchStationHistory = useCallback(
     async (row: GasRow) => {
@@ -604,37 +598,14 @@ export default function HomeScreen() {
     setGraphDataByStation({});
   }, [selectedFuel]);
 
+  if (!isConfigured) {
+    return null;
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
     <ThemedView style={styles.container}>
       <KineticRoadwayBackground />
-      <Modal visible={showVehiclePrompt} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <ThemedText type="subtitle">Vehicle Setup</ThemedText>
-            <ThemedText>Estimated gallons needed</ThemedText>
-            <TextInput
-              style={styles.input}
-              keyboardType="decimal-pad"
-              value={gallonsNeededInput}
-              onChangeText={setGallonsNeededInput}
-              placeholder="ex: 8.5"
-            />
-            <ThemedText>Fuel economy (MPG)</ThemedText>
-            <TextInput
-              style={styles.input}
-              keyboardType="decimal-pad"
-              value={mpgInput}
-              onChangeText={setMpgInput}
-              placeholder="ex: 28"
-            />
-            <Pressable style={styles.button} onPress={onSaveVehicle}>
-              <ThemedText style={styles.buttonText}>Save</ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       <View style={styles.headerRow}>
         <ThemedText type="title">Gas Finder</ThemedText>
         <Pressable style={styles.filtersButton} onPress={() => setShowFilters((v) => !v)}>
