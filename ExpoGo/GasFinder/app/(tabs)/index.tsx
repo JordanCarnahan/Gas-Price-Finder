@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { KineticRoadwayBackground } from "@/components/kinetic-roadway-background";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 
@@ -606,6 +607,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
     <ThemedView style={styles.container}>
+      <KineticRoadwayBackground />
       <Modal visible={showVehiclePrompt} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -789,9 +791,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: "#1f2937",
+    backgroundColor: "#0e0e0e",
     padding: 24,
     gap: 16,
+    overflow: "hidden",
   },
   headerRow: {
     flexDirection: "row",
