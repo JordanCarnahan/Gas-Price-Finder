@@ -4,7 +4,10 @@ type VehicleConfigContextValue = {
   fuelEconomy: number | null;
   gallonsNeeded: number | null;
   isConfigured: boolean;
+  locationPermission: 'allow' | 'deny' | null;
+  isLocationStepComplete: boolean;
   saveConfig: (config: { fuelEconomy: number; gallonsNeeded: number }) => void;
+  setLocationPermission: (permission: 'allow' | 'deny') => void;
 };
 
 const VehicleConfigContext = createContext<VehicleConfigContextValue | null>(null);
@@ -12,6 +15,7 @@ const VehicleConfigContext = createContext<VehicleConfigContextValue | null>(nul
 export function VehicleConfigProvider({ children }: PropsWithChildren) {
   const [gallonsNeeded, setGallonsNeeded] = useState<number | null>(null);
   const [fuelEconomy, setFuelEconomy] = useState<number | null>(null);
+  const [locationPermission, setLocationPermissionState] = useState<'allow' | 'deny' | null>(null);
 
   const value = useMemo<VehicleConfigContextValue>(
     () => ({
@@ -19,12 +23,17 @@ export function VehicleConfigProvider({ children }: PropsWithChildren) {
       fuelEconomy,
       isConfigured:
         gallonsNeeded != null && gallonsNeeded > 0 && fuelEconomy != null && fuelEconomy > 0,
+      locationPermission,
+      isLocationStepComplete: locationPermission != null,
       saveConfig: ({ fuelEconomy: nextFuelEconomy, gallonsNeeded: nextGallonsNeeded }) => {
         setFuelEconomy(nextFuelEconomy);
         setGallonsNeeded(nextGallonsNeeded);
       },
+      setLocationPermission: (permission) => {
+        setLocationPermissionState(permission);
+      },
     }),
-    [fuelEconomy, gallonsNeeded],
+    [fuelEconomy, gallonsNeeded, locationPermission],
   );
 
   return <VehicleConfigContext.Provider value={value}>{children}</VehicleConfigContext.Provider>;

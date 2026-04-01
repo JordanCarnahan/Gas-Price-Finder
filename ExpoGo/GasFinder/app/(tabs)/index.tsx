@@ -1,12 +1,10 @@
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from 'expo-router';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { KineticRoadwayBackground } from "@/components/kinetic-roadway-background";
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { useVehicleConfig } from '@/hooks/use-vehicle-config';
+import { useVehicleConfig } from "@/hooks/use-vehicle-config";
 
 type FuelType = "regular" | "midgrade" | "premium" | "diesel";
 type SortOrder = "best" | "cheapest" | "most_expensive" | "closest";
@@ -45,32 +43,20 @@ type DisplayRow = GasRow & {
   totalPrice: number | null;
 };
 
-type HistoryRow = {
-  run_timestamp: string;
-  regular: number | null;
-  midgrade: number | null;
-  premium: number | null;
-  diesel: number | null;
-};
-
-type GraphPoint = {
-  dateKey: string;
-  dayLabel: string;
-  price: number | null;
-};
-
-type GraphState = {
-  loading: boolean;
-  error: string;
-  points: GraphPoint[];
-};
+const searchIcon = "https://www.figma.com/api/mcp/asset/8df900f3-fc02-41ab-94ac-61f8bfb73e02";
+const searchActionIcon = "https://www.figma.com/api/mcp/asset/b8e2dabe-abad-4a8b-ae92-303ab78c6047";
+const filterIcon = "https://www.figma.com/api/mcp/asset/6f667495-fc7c-486d-ac6c-86996c436b4b";
+const floatingButtonIcon = "https://www.figma.com/api/mcp/asset/2f8505d6-ad03-48e1-b774-f5cafecf65b5";
+const listIcon = "https://www.figma.com/api/mcp/asset/95382bcb-92a5-46d0-9872-3016337859ad";
+const favoritesIcon = "https://www.figma.com/api/mcp/asset/c25618c3-7773-4c8c-abc2-80330d4a1d35";
 
 const BIOLA_COORDS: UserCoords = {
   latitude: 33.9053,
   longitude: -117.9874,
 };
+
 const DISTANCE_PENALTY_PER_MILE = 0.5;
-const ENABLE_GRAPH_PREVIEW_DATA = true;
+const PRIMARY_FUEL_CHIPS: FuelType[] = ["regular", "premium", "diesel"];
 
 const fuelLabels: Record<FuelType, string> = {
   regular: "Regular",
@@ -82,7 +68,7 @@ const fuelLabels: Record<FuelType, string> = {
 const sortLabels: Record<SortOrder, string> = {
   best: "Best",
   cheapest: "Cheapest",
-  most_expensive: "Most expensive",
+  most_expensive: "Highest",
   closest: "Closest",
 };
 
@@ -111,6 +97,14 @@ function formatUpdatedLabel(value: string | null): string {
   return normalized;
 }
 
+function money(value: number | null): string {
+  if (value == null) {
+    return "N/A";
+  }
+
+  return `$${value.toFixed(2)}`;
+}
+
 function toMiles(meters: number): number {
   return meters * 0.000621371;
 }
@@ -129,220 +123,87 @@ function haversineMiles(from: UserCoords, to: UserCoords): number {
   return toMiles(r * c);
 }
 
-function money(value: number | null): string {
-  if (value == null) {
+function formatStationAddress(row: GasRow): string {
+  return row.address ? `${row.address}, ${row.city}` : row.city;
+}
+
+function formatDistanceLabel(distanceMiles: number | null): string {
+  if (distanceMiles == null) {
     return "N/A";
   }
-  return `$${value.toFixed(2)}`;
+
+  const rounded = distanceMiles < 10 ? Number(distanceMiles.toFixed(1)) : Math.round(distanceMiles);
+
+  if (Math.abs(rounded - 1) < 0.05) {
+    return "1 Mile";
+  }
+
+  return `${rounded} Mi`;
 }
 
-function formatDayLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", { weekday: "short" });
-}
-
-function formatDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function formatAxisPrice(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
-
-function buildStationHistoryKey(row: GasRow): string {
-  if (row.station_id) {
-    return `station:${row.station_id}`;
-  }
-  return `name:${row.station_name}|address:${row.address ?? ""}|city:${row.city}`;
-}
-
-function buildSevenDaySeries(rows: HistoryRow[], fuel: FuelType): GraphPoint[] {
-  const latestByDay = new Map<string, GraphPoint>();
-
-  rows.forEach((row) => {
-    const price = row[fuel];
-    if (price == null) {
-      return;
-    }
-
-    const runDate = new Date(row.run_timestamp);
-    const dateKey = formatDateKey(runDate);
-
-    if (!latestByDay.has(dateKey)) {
-      latestByDay.set(dateKey, {
-        dateKey,
-        dayLabel: formatDayLabel(runDate),
-        price,
-      });
-    }
-  });
-
-  const today = new Date();
-  const points: GraphPoint[] = [];
-
-  for (let index = 6; index >= 0; index -= 1) {
-    const date = new Date(today);
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - index);
-    const isToday = index === 0;
-
-    const dateKey = formatDateKey(date);
-    const point = latestByDay.get(dateKey);
-
-    points.push({
-      dateKey,
-      dayLabel: isToday ? "Now" : formatDayLabel(date),
-      price: point?.price ?? null,
-    });
-  }
-
-  return points;
-}
-
-function withPreviewGraphData(points: GraphPoint[]) {
-  if (!ENABLE_GRAPH_PREVIEW_DATA) {
-    return points;
-  }
-
-  const existingPrices = points.flatMap((point) => (point.price == null ? [] : [point.price]));
-  const basePrice = existingPrices[existingPrices.length - 1] ?? 4.35;
-  const offsets = [-0.18, -0.12, -0.09, -0.05, 0.02, -0.03, 0.08];
-
-  return points.map((point, index) => ({
-    ...point,
-    price: point.price ?? Number((basePrice + offsets[index]).toFixed(2)),
-  }));
-}
-
-function getNiceStep(rawStep: number): number {
-  if (rawStep <= 0) {
-    return 0.1;
-  }
-
-  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-  const normalized = rawStep / magnitude;
-
-  if (normalized <= 1) {
-    return magnitude;
-  }
-  if (normalized <= 2) {
-    return 2 * magnitude;
-  }
-  if (normalized <= 5) {
-    return 5 * magnitude;
-  }
-  return 10 * magnitude;
-}
-
-function getChartScale(points: GraphPoint[]) {
-  const prices = points.flatMap((point) => (point.price == null ? [] : [point.price]));
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-
-  if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice)) {
-    return null;
-  }
-
-  const range = maxPrice - minPrice;
-  const paddedRange = range === 0 ? Math.max(minPrice * 0.08, 0.2) : range * 0.3;
-  const step = getNiceStep((range + paddedRange * 2) / 4);
-  const minY = Math.max(0, Math.floor((minPrice - paddedRange) / step) * step);
-  let maxY = Math.ceil((maxPrice + paddedRange) / step) * step;
-
-  if (maxY === minY) {
-    maxY = minY + step * 4;
-  }
-
-  const ticks = Array.from({ length: 5 }, (_, index) => minY + step * (4 - index));
-
-  return { minY, maxY, ticks };
-}
-
-function StationHistoryGraph({ points }: { points: GraphPoint[] }) {
-  const scale = useMemo(() => getChartScale(points), [points]);
-
-  if (!scale) {
-    return (
-      <View style={styles.graphEmptyState}>
-        <ThemedText>No price history found for the last 7 days.</ThemedText>
-      </View>
-    );
-  }
-
-  const latestPrice = [...points].reverse().find((point) => point.price != null)?.price;
+function StationCard({
+  row,
+  expanded,
+  onPress,
+  onOpenMaps,
+  selectedFuel,
+}: {
+  row: DisplayRow;
+  expanded: boolean;
+  onPress: () => void;
+  onOpenMaps: () => void;
+  selectedFuel: FuelType;
+}) {
+  const otherFuels = (Object.keys(fuelLabels) as FuelType[]).filter(
+    (fuel) => fuel !== selectedFuel && getPriceForFuel(row, fuel) != null
+  );
 
   return (
-    <View style={styles.graphCard}>
-      <View style={styles.graphHeader}>
-        <ThemedText type="defaultSemiBold">7-day price trend</ThemedText>
-        <ThemedText style={styles.graphHeaderValue}>
-          {latestPrice == null ? "N/A" : formatAxisPrice(latestPrice)}
-        </ThemedText>
-      </View>
-
-      <View style={styles.graphBody}>
-        <View style={styles.graphYAxis}>
-          {scale.ticks.map((tick) => (
-            <ThemedText key={tick} style={styles.graphAxisLabel}>
-              {formatAxisPrice(tick)}
-            </ThemedText>
-          ))}
+    <View style={styles.stationCardWrap}>
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.stationCard, pressed && styles.stationCardPressed]}>
+        <View style={styles.stationCardTop}>
+          <Text style={styles.stationName}>{row.station_name}</Text>
+          <Text style={styles.stationAddress}>{formatStationAddress(row)}</Text>
+          <Text style={styles.stationUpdated}>Updated {formatUpdatedLabel(getUpdatedForFuel(row, selectedFuel))}</Text>
         </View>
 
-        <View style={styles.graphPlotWrap}>
-          <View style={styles.graphGrid}>
-            {scale.ticks.map((tick) => (
-              <View key={tick} style={styles.graphGridLine} />
-            ))}
+        <View style={styles.stationCardBottom}>
+          <View style={styles.pricePanel}>
+            <Text style={styles.priceValue}>{money(getPriceForFuel(row, selectedFuel))}</Text>
+            <Text style={styles.priceCaption}>PER GALLON</Text>
           </View>
 
-          <View style={styles.graphPlot}>
-            {points.map((point, index) => {
-              const previousPrice = index > 0 ? points[index - 1]?.price : null;
-              const ratio =
-                point.price == null || scale.maxY === scale.minY
-                  ? 0
-                  : (point.price - scale.minY) / (scale.maxY - scale.minY);
-              const trendColor =
-                point.price == null || previousPrice == null || point.price === previousPrice
-                  ? "#38bdf8"
-                  : point.price > previousPrice
-                    ? "#ef4444"
-                    : "#22c55e";
+          <View style={styles.distancePanel}>
+            <Text style={styles.distanceValue}>{formatDistanceLabel(row.distanceMiles)}</Text>
+            <Text style={styles.distanceCaption}>DISTANCE</Text>
+          </View>
+        </View>
+      </Pressable>
 
-              return (
-                <View key={point.dateKey} style={styles.graphBarColumn}>
-                  <View style={styles.graphBarTrack}>
-                    {point.price != null && (
-                      <>
-                        <ThemedText style={[styles.graphPointValue, { color: trendColor }]}>
-                          {point.price.toFixed(2)}
-                        </ThemedText>
-                        <View
-                          style={[
-                            styles.graphBar,
-                            {
-                              height: `${Math.max(ratio * 100, 4)}%`,
-                              backgroundColor: trendColor,
-                            },
-                          ]}
-                        />
-                      </>
-                    )}
-                  </View>
+      {expanded && (
+        <View style={styles.stationDetails}>
+          <Text style={styles.detailsHeading}>Trip breakdown</Text>
+          <Text style={styles.detailsText}>Fill-up cost: {money(row.fuelPriceTotal)}</Text>
+          <Text style={styles.detailsText}>Drive cost: {money(row.drivingPrice)}</Text>
+          <Text style={styles.detailsText}>Best trip total: {money(row.totalPrice)}</Text>
+
+          {otherFuels.length > 0 && (
+            <View style={styles.otherFuelWrap}>
+              {otherFuels.map((fuel) => (
+                <View key={fuel} style={styles.otherFuelChip}>
+                  <Text style={styles.otherFuelLabel}>{fuelLabels[fuel]}</Text>
+                  <Text style={styles.otherFuelValue}>{money(getPriceForFuel(row, fuel))}</Text>
+                  <Text style={styles.otherFuelUpdated}>{formatUpdatedLabel(getUpdatedForFuel(row, fuel))}</Text>
                 </View>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )}
 
-          <View style={styles.graphXAxis}>
-            {points.map((point) => (
-              <View key={point.dateKey} style={styles.graphXAxisItem}>
-                <ThemedText style={styles.graphXAxisLabel}>{point.dayLabel}</ThemedText>
-              </View>
-            ))}
-          </View>
+          <Pressable onPress={onOpenMaps} style={styles.mapsButton}>
+            <Text style={styles.mapsButtonText}>Open in Maps</Text>
+          </Pressable>
         </View>
-      </View>
+      )}
     </View>
   );
 }
@@ -354,59 +215,67 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
   const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("best");
-  const { fuelEconomy, gallonsNeeded, isConfigured } = useVehicleConfig();
+  const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
   const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
-  const [showDrivingInfoForId, setShowDrivingInfoForId] = useState<number | null>(null);
-  const [shownGraphStationKey, setShownGraphStationKey] = useState<string | null>(null);
-  const [graphDataByStation, setGraphDataByStation] = useState<Record<string, GraphState>>({});
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const { fuelEconomy, gallonsNeeded, isConfigured, isLocationStepComplete } = useVehicleConfig();
 
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const tableName = process.env.EXPO_PUBLIC_SUPABASE_TABLE ?? "gas_prices";
-  const historyTableName = process.env.EXPO_PUBLIC_SUPABASE_HISTORY_TABLE ?? "gas_price_history";
 
-  const canFetch = useMemo(() => Boolean(supabaseUrl && supabaseAnonKey), [supabaseUrl, supabaseAnonKey]);
+  const canFetch = useMemo(() => Boolean(supabaseUrl && supabaseAnonKey), [supabaseAnonKey, supabaseUrl]);
+
+  const availableFuelChips = useMemo(() => {
+    const chips = [...PRIMARY_FUEL_CHIPS];
+
+    if (selectedFuel === "midgrade" && !chips.includes("midgrade")) {
+      chips.splice(1, 0, "midgrade");
+    }
+
+    return chips.filter(
+      (fuel) => rows.some((row) => getPriceForFuel(row, fuel) != null) || fuel === selectedFuel
+    );
+  }, [rows, selectedFuel]);
 
   const visibleRows = useMemo(() => {
     const rowsWithMetrics: DisplayRow[] = rows
       .filter((row) => getPriceForFuel(row, selectedFuel) != null)
       .map((row) => {
-      const price = getPriceForFuel(row, selectedFuel);
-      const distanceMiles =
-        userCoords && row.latitude != null && row.longitude != null
-          ? haversineMiles(userCoords, { latitude: row.latitude, longitude: row.longitude })
-          : null;
+        const price = getPriceForFuel(row, selectedFuel);
+        const distanceMiles =
+          userCoords && row.latitude != null && row.longitude != null
+            ? haversineMiles(userCoords, { latitude: row.latitude, longitude: row.longitude })
+            : null;
 
-      const drivingPrice =
-        price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
-          ? (distanceMiles / fuelEconomy) * price + distanceMiles * DISTANCE_PENALTY_PER_MILE
-          : null;
+        const drivingPrice =
+          price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
+            ? (distanceMiles / fuelEconomy) * price + distanceMiles * DISTANCE_PENALTY_PER_MILE
+            : null;
 
-      const drivingFuelCost =
-        price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
-          ? (distanceMiles / fuelEconomy) * price
-          : null;
+        const drivingFuelCost =
+          price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
+            ? (distanceMiles / fuelEconomy) * price
+            : null;
 
-      const distancePenalty =
-        distanceMiles != null
-          ? distanceMiles * DISTANCE_PENALTY_PER_MILE
-          : null;
+        const distancePenalty = distanceMiles != null ? distanceMiles * DISTANCE_PENALTY_PER_MILE : null;
 
-      const fuelPriceTotal =
-        price != null && gallonsNeeded != null && gallonsNeeded > 0
-          ? gallonsNeeded * price
-          : null;
+        const fuelPriceTotal =
+          price != null && gallonsNeeded != null && gallonsNeeded > 0 ? gallonsNeeded * price : null;
 
-      // "Best" ranks by total out-of-pocket cost for a fill-up trip.
-      const totalPrice =
-        drivingPrice != null && fuelPriceTotal != null
-          ? fuelPriceTotal + drivingPrice
-          : null;
+        const totalPrice =
+          drivingPrice != null && fuelPriceTotal != null ? fuelPriceTotal + drivingPrice : null;
 
-      return { ...row, distanceMiles, drivingFuelCost, distancePenalty, drivingPrice, fuelPriceTotal, totalPrice };
-    });
+        return {
+          ...row,
+          distanceMiles,
+          drivingFuelCost,
+          distancePenalty,
+          drivingPrice,
+          fuelPriceTotal,
+          totalPrice,
+        };
+      });
 
     if (sortOrder === "closest") {
       const withDistance = rowsWithMetrics.filter((row) => row.distanceMiles != null);
@@ -422,19 +291,17 @@ export default function HomeScreen() {
       return [...sorted, ...withoutTotal];
     }
 
-    const sorted = [...rowsWithMetrics].sort((a, b) => {
+    return [...rowsWithMetrics].sort((a, b) => {
       const aPrice = getPriceForFuel(a, selectedFuel) as number;
       const bPrice = getPriceForFuel(b, selectedFuel) as number;
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
-    return sorted;
-  }, [rows, selectedFuel, sortOrder, userCoords, fuelEconomy, gallonsNeeded]);
+  }, [fuelEconomy, gallonsNeeded, rows, selectedFuel, sortOrder, userCoords]);
 
-  const openInMaps = async (address: string, city: string) => {
-    const query = encodeURIComponent(`${address}, ${city}`);
-    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    await Linking.openURL(url);
-  };
+  const openInMaps = useCallback(async (row: DisplayRow) => {
+    const query = encodeURIComponent(formatStationAddress(row));
+    await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  }, []);
 
   const onFetchPress = useCallback(async () => {
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -479,278 +346,144 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [supabaseUrl, supabaseAnonKey, tableName]);
+  }, [supabaseAnonKey, supabaseUrl, tableName]);
 
   useEffect(() => {
     if (!isConfigured) {
-      router.replace('/fuel-configuration');
+      router.replace("/fuel-configuration");
+      return;
+    }
+
+    if (!isLocationStepComplete) {
+      router.replace("/location-access");
       return;
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
       return;
     }
+
     void onFetchPress();
-  }, [isConfigured, onFetchPress, router, supabaseUrl, supabaseAnonKey]);
+  }, [isConfigured, isLocationStepComplete, onFetchPress, router, supabaseAnonKey, supabaseUrl]);
 
-  const fetchStationHistory = useCallback(
-    async (row: GasRow) => {
-      if (!supabaseUrl || !supabaseAnonKey) {
-        setErrorMessage("Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY.");
-        return;
-      }
-
-      const stationKey = buildStationHistoryKey(row);
-      setShownGraphStationKey(stationKey);
-
-      setGraphDataByStation((current) => ({
-        ...current,
-        [stationKey]: {
-          loading: true,
-          error: "",
-          points: current[stationKey]?.points ?? [],
-        },
-      }));
-
-      try {
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
-        startDate.setDate(startDate.getDate() - 6);
-
-        const params = new URLSearchParams({
-          select: "run_timestamp,regular,midgrade,premium,diesel",
-          order: "run_timestamp.desc",
-          run_timestamp: `gte.${startDate.toISOString()}`,
-        });
-
-        if (row.station_id) {
-          params.set("station_id", `eq.${row.station_id}`);
-        } else {
-          params.set("station_name", `eq.${row.station_name}`);
-          if (row.address) {
-            params.set("address", `eq.${row.address}`);
-          } else {
-            params.set("city", `eq.${row.city}`);
-          }
-        }
-
-        const response = await fetch(`${supabaseUrl}/rest/v1/${historyTableName}?${params.toString()}`, {
-          headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
-        });
-
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload?.message ?? "Failed to fetch station history.");
-        }
-
-        const points = withPreviewGraphData(
-          buildSevenDaySeries(Array.isArray(payload) ? (payload as HistoryRow[]) : [], selectedFuel)
-        );
-
-        setGraphDataByStation((current) => ({
-          ...current,
-          [stationKey]: {
-            loading: false,
-            error: "",
-            points,
-          },
-        }));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to fetch station history.";
-        setGraphDataByStation((current) => ({
-          ...current,
-          [stationKey]: {
-            loading: false,
-            error: message,
-            points: current[stationKey]?.points ?? [],
-          },
-        }));
-      }
-    },
-    [historyTableName, selectedFuel, supabaseAnonKey, supabaseUrl]
-  );
-
-  const onToggleGraph = useCallback(
-    async (row: GasRow) => {
-      const stationKey = buildStationHistoryKey(row);
-
-      if (shownGraphStationKey === stationKey) {
-        setShownGraphStationKey(null);
-        return;
-      }
-
-      const currentGraph = graphDataByStation[stationKey];
-      if (currentGraph && !currentGraph.loading) {
-        setShownGraphStationKey(stationKey);
-        return;
-      }
-
-      await fetchStationHistory(row);
-    },
-    [fetchStationHistory, graphDataByStation, shownGraphStationKey]
-  );
-
-  useEffect(() => {
-    setShownGraphStationKey(null);
-    setGraphDataByStation({});
-  }, [selectedFuel]);
-
-  if (!isConfigured) {
+  if (!isConfigured || !isLocationStepComplete) {
     return null;
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-    <ThemedView style={styles.container}>
-      <KineticRoadwayBackground />
-      <View style={styles.headerRow}>
-        <ThemedText type="title">Gas Finder</ThemedText>
-        <Pressable style={styles.filtersButton} onPress={() => setShowFilters((v) => !v)}>
-          <ThemedText style={styles.filtersButtonText}>{showFilters ? "Hide Filters" : "Filters"}</ThemedText>
-        </Pressable>
-      </View>
-      {!canFetch && (
-        <ThemedText style={styles.message}>Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your Expo .env file.</ThemedText>
-      )}
-      {loading && <ActivityIndicator />}
-      {!!errorMessage && <ThemedText style={styles.error}>{errorMessage}</ThemedText>}
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Text style={styles.brand}>FuelFinder</Text>
+          <Pressable onPress={() => setShowFilters((current) => !current)} style={styles.headerIconButton}>
+            <Image contentFit="contain" source={filterIcon} style={styles.headerIcon} />
+          </Pressable>
+        </View>
+        <View style={styles.headerDivider} />
 
-      <ScrollView style={styles.results} contentContainerStyle={styles.resultsContent}>
-        {showFilters && (
-          <>
-            <View style={styles.controlSection}>
-              <ThemedText type="defaultSemiBold">Fuel type</ThemedText>
-              <View style={styles.chipRow}>
-                {(Object.keys(fuelLabels) as FuelType[]).map((fuel) => (
-                  <Pressable
-                    key={fuel}
-                    onPress={() => setSelectedFuel(fuel)}
-                    style={[styles.chip, selectedFuel === fuel && styles.chipActive]}>
-                    <ThemedText style={selectedFuel === fuel ? styles.chipTextActive : undefined}>{fuelLabels[fuel]}</ThemedText>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}>
+          <View style={styles.searchBar}>
+            <Image contentFit="contain" source={searchIcon} style={styles.searchBarIcon} />
+            <Text style={styles.searchPlaceholder}>Search for cheap fuel{"\n"}nearby...</Text>
+            <Pressable onPress={() => void onFetchPress()} style={styles.searchActionButton}>
+              <Image contentFit="contain" source={searchActionIcon} style={styles.searchActionIcon} />
+            </Pressable>
+          </View>
 
-            <View style={styles.controlSection}>
-              <ThemedText type="defaultSemiBold">Sort</ThemedText>
-              <View style={styles.chipRow}>
+          <View style={styles.fuelChipRow}>
+            {availableFuelChips.map((fuel) => (
+              <Pressable
+                key={fuel}
+                onPress={() => setSelectedFuel(fuel)}
+                style={[styles.fuelChip, selectedFuel === fuel && styles.fuelChipActive]}>
+                <Text style={[styles.fuelChipText, selectedFuel === fuel && styles.fuelChipTextActive]}>
+                  {fuelLabels[fuel]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {showFilters && (
+            <View style={styles.filterPanel}>
+              <Text style={styles.filterPanelLabel}>Sort by</Text>
+              <View style={styles.filterChipRow}>
                 {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
                   <Pressable
                     key={option}
                     onPress={() => setSortOrder(option)}
-                    style={[styles.chip, sortOrder === option && styles.chipActive]}>
-                    <ThemedText style={sortOrder === option ? styles.chipTextActive : undefined}>{sortLabels[option]}</ThemedText>
+                    style={[styles.filterChip, sortOrder === option && styles.filterChipActive]}>
+                    <Text style={[styles.filterChipText, sortOrder === option && styles.filterChipTextActive]}>
+                      {sortLabels[option]}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
-            </View>
-          </>
-        )}
 
-        {visibleRows.map((row) => {
-          const stationKey = buildStationHistoryKey(row);
-          const graphState = graphDataByStation[stationKey];
-          const isGraphVisible = shownGraphStationKey === stationKey;
-
-          return (
-            <View key={row.id} style={styles.card}>
-            <View style={styles.cardTopRow}>
-              <Pressable style={styles.cardLeft} onPress={() => setExpandedStationId(expandedStationId === row.id ? null : row.id)}>
-                <ThemedText type="defaultSemiBold">{row.station_name}</ThemedText>
-                {row.address ? (
-                  <Pressable onPress={() => openInMaps(row.address as string, row.city)}>
-                    <ThemedText style={styles.mapLink}>{`${row.address}, ${row.city}`}</ThemedText>
-                  </Pressable>
-                ) : (
-                  <ThemedText>{row.city}</ThemedText>
-                )}
-                <ThemedText>
-                  Distance: {row.distanceMiles == null ? "N/A" : `${row.distanceMiles.toFixed(2)} mi`}
-                </ThemedText>
-                <ThemedText style={styles.tapHint}>
-                  {expandedStationId === row.id ? "Tap to hide fuel details" : "Tap station for fuel details"}
-                </ThemedText>
-              </Pressable>
-
-              <View style={styles.cardRight}>
-                <View style={styles.priceBlock}>
-                  <ThemedText style={styles.selectedFuelLabel}>{fuelLabels[selectedFuel]}</ThemedText>
-                  <ThemedText style={styles.selectedPriceLarge}>{money(getPriceForFuel(row, selectedFuel))}</ThemedText>
-                  <ThemedText style={styles.selectedPriceUpdated}>
-                    Updated: {formatUpdatedLabel(getUpdatedForFuel(row, selectedFuel))}
-                  </ThemedText>
-                </View>
-                <Pressable
-                  style={styles.priceBlock}
-                  onPress={() => setShowDrivingInfoForId(showDrivingInfoForId === row.id ? null : row.id)}>
-                  <ThemedText style={styles.totalPriceLabel}>Total price</ThemedText>
-                  <ThemedText style={styles.totalPriceLarge}>{money(row.totalPrice)}</ThemedText>
+              {!availableFuelChips.includes("midgrade") && rows.some((row) => row.midgrade != null) && (
+                <Pressable onPress={() => setSelectedFuel("midgrade")} style={styles.midgradeShortcut}>
+                  <Text style={styles.midgradeShortcutText}>Show Midgrade Prices</Text>
                 </Pressable>
-              </View>
+              )}
             </View>
+          )}
 
-            {expandedStationId === row.id && (
-              <View style={styles.infoBox}>
-                <View style={styles.infoBoxTopRow}>
-                  <View style={styles.infoBoxDetails}>
-                    <ThemedText type="defaultSemiBold">Other fuel prices</ThemedText>
-                    {(Object.keys(fuelLabels) as FuelType[])
-                      .filter((fuel) => fuel !== selectedFuel)
-                      .map((fuel) => (
-                        <ThemedText key={fuel}>
-                          {fuelLabels[fuel]}: {money(getPriceForFuel(row, fuel))}
-                        </ThemedText>
-                      ))}
-                  </View>
-                  <Pressable style={styles.graphButton} onPress={() => void onToggleGraph(row)}>
-                    <ThemedText style={styles.graphButtonText}>{isGraphVisible ? "Hide graph" : "Show graph"}</ThemedText>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-
-            {showDrivingInfoForId === row.id && (
-              <View style={styles.infoBubble}>
-                <ThemedText type="defaultSemiBold">Trip cost details</ThemedText>
-                <ThemedText>
-                  Fuel price total: {money(getPriceForFuel(row, selectedFuel))} x {gallonsNeeded ?? "N/A"} = {money(row.fuelPriceTotal)}
-                </ThemedText>
-                <ThemedText>
-                  Driving fuel: ({row.distanceMiles == null ? "N/A" : row.distanceMiles.toFixed(2)} / {fuelEconomy ?? "N/A"}) x {money(getPriceForFuel(row, selectedFuel))} = {money(row.drivingFuelCost)}
-                </ThemedText>
-                <ThemedText>
-                  Distance penalty: {row.distanceMiles == null ? "N/A" : row.distanceMiles.toFixed(2)} x $0.50 = {money(row.distancePenalty)}
-                </ThemedText>
-                <ThemedText>Driving price (+ $0.50/mi): {money(row.drivingPrice)}</ThemedText>
-              </View>
-            )}
-            {isGraphVisible && (
-              <View style={styles.graphSection}>
-                {graphState?.loading ? (
-                  <View style={styles.graphLoading}>
-                    <ActivityIndicator />
-                  </View>
-                ) : graphState?.error ? (
-                  <View style={styles.graphEmptyState}>
-                    <ThemedText style={styles.error}>{graphState.error}</ThemedText>
-                  </View>
-                ) : (
-                  <StationHistoryGraph points={graphState?.points ?? []} />
-                )}
-              </View>
-            )}
+          {!canFetch && (
+            <View style={styles.statusCard}>
+              <Text style={styles.statusText}>
+                Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your Expo .env file.
+              </Text>
             </View>
-          );
-        })}
-        {!loading && visibleRows.length === 0 && !errorMessage && (
-          <ThemedText style={styles.message}>No rows loaded yet.</ThemedText>
-        )}
-      </ScrollView>
-    </ThemedView>
+          )}
+
+          {loading && rows.length === 0 && (
+            <View style={styles.statusCard}>
+              <ActivityIndicator color="#ff9f4a" />
+            </View>
+          )}
+
+          {!!errorMessage && (
+            <View style={styles.statusCard}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          )}
+
+          {visibleRows.map((row) => (
+            <StationCard
+              key={row.id}
+              expanded={expandedStationId === row.id}
+              onOpenMaps={() => void openInMaps(row)}
+              onPress={() => setExpandedStationId((current) => (current === row.id ? null : row.id))}
+              row={row}
+              selectedFuel={selectedFuel}
+            />
+          ))}
+
+          {!loading && visibleRows.length === 0 && !errorMessage && (
+            <View style={styles.statusCard}>
+              <Text style={styles.statusText}>No stations found for {fuelLabels[selectedFuel].toLowerCase()}.</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <Pressable onPress={() => void onFetchPress()} style={styles.floatingButton}>
+          <Image contentFit="contain" source={floatingButtonIcon} style={styles.floatingButtonIcon} />
+        </Pressable>
+
+        <View style={styles.bottomNav}>
+          <View style={styles.bottomNavActiveItem}>
+            <Image contentFit="contain" source={listIcon} style={styles.bottomNavActiveIcon} />
+            <Text style={styles.bottomNavActiveLabel}>LIST</Text>
+          </View>
+
+          <Pressable onPress={() => router.push("/explore")} style={styles.bottomNavItem}>
+            <Image contentFit="contain" source={favoritesIcon} style={styles.bottomNavIcon} />
+            <Text style={styles.bottomNavLabel}>FAVORITES</Text>
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -758,318 +491,428 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#1f2937",
+    backgroundColor: "#0e0e0e",
   },
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: "#0e0e0e",
-    padding: 24,
-    gap: 16,
-    overflow: "hidden",
   },
-  headerRow: {
+  header: {
+    height: 75,
+    paddingLeft: 24,
+    paddingRight: 25,
+    paddingVertical: 16,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 2,
+    justifyContent: "space-between",
   },
-  filtersButton: {
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: "#111827",
+  brand: {
+    color: "#ff9f4a",
+    fontSize: 18,
+    lineHeight: 28,
+    fontWeight: "800",
+    letterSpacing: -0.9,
   },
-  filtersButtonText: {
-    color: "#ffffff",
-    fontWeight: "600",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  headerIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
     justifyContent: "center",
-    padding: 24,
   },
-  modalCard: {
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "#374151",
+  headerIcon: {
+    width: 18,
+    height: 18,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#6b7280",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: "#ffffff",
+  headerDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#262626",
   },
-  button: {
-    paddingVertical: 12,
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: "#1f6feb",
-    alignSelf: "flex-start",
+    paddingTop: 28,
+    paddingBottom: 180,
+    gap: 16,
   },
-  buttonText: {
-    color: "#ffffff",
-    fontWeight: "600",
+  searchBar: {
+    backgroundColor: "#2c2c2c",
+    borderWidth: 1,
+    borderColor: "rgba(255,159,74,0.1)",
+    borderRadius: 999,
+    minHeight: 76,
+    paddingLeft: 21,
+    paddingRight: 12,
+    paddingVertical: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  searchBarIcon: {
+    width: 28,
+    height: 20,
   },
-  message: {
-    opacity: 0.8,
+  searchPlaceholder: {
+    flex: 1,
+    paddingHorizontal: 12,
+    color: "#adaaaa",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "500",
   },
-  error: {
-    color: "#d93025",
+  searchActionButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    backgroundColor: "#ff9f4a",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  controlSection: {
-    gap: 8,
+  searchActionIcon: {
+    width: 22,
+    height: 22,
   },
-  chipRow: {
+  fuelChipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+  fuelChip: {
+    backgroundColor: "#474747",
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  chipActive: {
-    backgroundColor: "#1f6feb",
-    borderColor: "#1f6feb",
+  fuelChipActive: {
+    backgroundColor: "#ff9f4a",
   },
-  chipTextActive: {
-    color: "#ffffff",
-  },
-  results: {
-    flex: 1,
-    width: "100%",
-  },
-  resultsContent: {
-    gap: 10,
-    paddingBottom: 24,
-  },
-  card: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#d0d7de",
-    padding: 12,
-    gap: 4,
-  },
-  cardTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  cardLeft: {
-    flex: 1,
-    gap: 4,
-  },
-  cardRight: {
-    minWidth: 140,
-    alignItems: "flex-end",
-    justifyContent: "flex-start",
-    gap: 12,
-    flexShrink: 0,
-  },
-  priceBlock: {
-    alignItems: "flex-end",
-    gap: 2,
-  },
-  selectedFuelLabel: {
-    opacity: 0.8,
-    textAlign: "right",
-  },
-  selectedPriceLarge: {
-    color: "#2fbf4a",
-    fontWeight: "700",
-    fontSize: 26,
-    lineHeight: 30,
-    textAlign: "right",
-  },
-  selectedPriceUpdated: {
-    fontSize: 12,
-    opacity: 0.8,
-    textAlign: "right",
-  },
-  totalPriceLarge: {
-    fontWeight: "800",
-    fontSize: 26,
-    lineHeight: 30,
-    textAlign: "right",
-  },
-  totalPriceLabel: {
-    textAlign: "right",
-    opacity: 0.8,
-  },
-  tapHint: {
-    opacity: 0.75,
-    fontSize: 12,
-  },
-  infoBox: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-    backgroundColor: "#111827",
-  },
-  infoBoxTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-  infoBoxDetails: {
-    flex: 1,
-    gap: 4,
-  },
-  infoBubble: {
-    marginTop: 8,
-    alignSelf: "flex-end",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-    backgroundColor: "#0f172a",
-    minWidth: 180,
-  },
-  graphButton: {
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: "#0f172a",
-    alignSelf: "flex-start",
-    minWidth: 110,
-    alignItems: "center",
-  },
-  graphButtonText: {
-    color: "#cbd5e1",
-    fontWeight: "600",
+  fuelChipText: {
+    color: "#adaaaa",
     fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
   },
-  graphSection: {
-    marginTop: 12,
+  fuelChipTextActive: {
+    color: "#442100",
   },
-  graphLoading: {
-    minHeight: 120,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  graphCard: {
+  filterPanel: {
+    backgroundColor: "#131313",
     borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 10,
-    backgroundColor: "#0b1220",
-    padding: 12,
+    borderColor: "#262626",
+    borderRadius: 12,
+    padding: 16,
     gap: 12,
   },
-  graphHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  graphHeaderValue: {
-    color: "#60a5fa",
+  filterPanelLabel: {
+    color: "#f7f7f7",
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "700",
   },
-  graphBody: {
+  filterChipRow: {
     flexDirection: "row",
-    gap: 10,
-    alignItems: "stretch",
-  },
-  graphYAxis: {
-    justifyContent: "space-between",
-    minHeight: 180,
-    paddingVertical: 2,
-  },
-  graphAxisLabel: {
-    fontSize: 12,
-    opacity: 0.78,
-  },
-  graphPlotWrap: {
-    flex: 1,
+    flexWrap: "wrap",
     gap: 8,
   },
-  graphGrid: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "space-between",
-    paddingVertical: 4,
-  },
-  graphGridLine: {
-    borderTopWidth: 1,
-    borderColor: "#1e293b",
-  },
-  graphPlot: {
-    minHeight: 180,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    paddingTop: 16,
-  },
-  graphBarColumn: {
-    flex: 1,
-    justifyContent: "flex-end",
-    position: "relative",
-  },
-  graphBarTrack: {
-    height: 180,
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  graphBar: {
-    width: "70%",
-    minWidth: 14,
-    backgroundColor: "#38bdf8",
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-  },
-  graphPointValue: {
-    fontSize: 11,
-    marginBottom: 6,
-    opacity: 0.85,
-  },
-  graphXAxis: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  graphXAxisItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2,
-  },
-  graphXAxisLabel: {
-    textAlign: "center",
-    fontSize: 12,
-    opacity: 0.78,
-  },
-  graphEmptyState: {
-    minHeight: 120,
+  filterChip: {
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 10,
-    backgroundColor: "#0b1220",
-    padding: 12,
+    borderColor: "#474747",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#202020",
+  },
+  filterChipActive: {
+    backgroundColor: "#ff9f4a",
+    borderColor: "#ff9f4a",
+  },
+  filterChipText: {
+    color: "#c3c3c3",
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+  filterChipTextActive: {
+    color: "#442100",
+  },
+  midgradeShortcut: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+  },
+  midgradeShortcutText: {
+    color: "#ff9f4a",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  statusCard: {
+    backgroundColor: "#131313",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 12,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
   },
-  totalPrice: {
+  statusText: {
+    color: "#d0d0d0",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  errorText: {
+    color: "#ff7b72",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  stationCardWrap: {
+    gap: 10,
+  },
+  stationCard: {
+    backgroundColor: "#131313",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 12,
+  },
+  stationCardPressed: {
+    opacity: 0.95,
+    transform: [{ scale: 0.995 }],
+  },
+  stationCardTop: {
+    backgroundColor: "#262626",
+    minHeight: 104,
+    padding: 20,
+    justifyContent: "center",
+    gap: 4,
+  },
+  stationName: {
+    color: "#ffffff",
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "800",
+  },
+  stationAddress: {
+    color: "#adaaaa",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stationUpdated: {
+    marginTop: 8,
+    color: "rgba(255,159,74,0.75)",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  stationCardBottom: {
+    flexDirection: "row",
+    minHeight: 87,
+    backgroundColor: "rgba(255,159,74,0.05)",
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(255,159,74,0.1)",
+  },
+  pricePanel: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRightWidth: 1,
+    borderRightColor: "rgba(255,159,74,0.1)",
+  },
+  priceValue: {
+    color: "#ff9f4a",
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: "800",
+    letterSpacing: -0.75,
+  },
+  priceCaption: {
+    marginTop: 4,
+    color: "rgba(255,159,74,0.7)",
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  distancePanel: {
+    width: 160,
+    backgroundColor: "#ff9f4a",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  distanceValue: {
+    color: "#442100",
+    fontSize: 18,
+    lineHeight: 28,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  distanceCaption: {
+    marginTop: 2,
+    color: "#442100",
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  stationDetails: {
+    backgroundColor: "#151515",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  detailsHeading: {
+    color: "#ffffff",
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "700",
   },
-  mapLink: {
+  detailsText: {
+    color: "#d2d2d2",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  otherFuelWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 6,
+  },
+  otherFuelChip: {
+    minWidth: 102,
+    backgroundColor: "#202020",
+    borderWidth: 1,
+    borderColor: "#2e2e2e",
+    borderRadius: 10,
+    padding: 10,
+    gap: 2,
+  },
+  otherFuelLabel: {
     color: "#ffffff",
-    textDecorationLine: "underline",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  otherFuelValue: {
+    color: "#ff9f4a",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "800",
+  },
+  otherFuelUpdated: {
+    color: "#9f9f9f",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  mapsButton: {
+    alignSelf: "flex-start",
+    marginTop: 6,
+    backgroundColor: "#ff9f4a",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  mapsButtonText: {
+    color: "#442100",
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  floatingButton: {
+    position: "absolute",
+    right: 24,
+    bottom: 96,
+    width: 56,
+    height: 56,
+    borderRadius: 999,
+    backgroundColor: "#ff9f4a",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#ff9f4a",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  floatingButtonIcon: {
+    width: 20,
+    height: 24,
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 32,
+    paddingHorizontal: 16,
+    paddingTop: 9,
+    paddingBottom: 24,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.05)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: "rgba(14,14,14,0.92)",
+  },
+  bottomNavActiveItem: {
+    minWidth: 96,
+    borderRadius: 999,
+    backgroundColor: "#262626",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingVertical: 8,
+  },
+  bottomNavItem: {
+    minWidth: 96,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+    paddingVertical: 8,
+    opacity: 0.6,
+  },
+  bottomNavActiveIcon: {
+    width: 18,
+    height: 16,
+  },
+  bottomNavIcon: {
+    width: 20,
+    height: 18,
+  },
+  bottomNavActiveLabel: {
+    marginTop: 4,
+    color: "#ff9f4a",
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "600",
+    letterSpacing: 1,
+  },
+  bottomNavLabel: {
+    marginTop: 4,
+    color: "#adaaaa",
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "600",
+    letterSpacing: 1,
   },
 });

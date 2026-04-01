@@ -50,7 +50,7 @@ export default function FuelConfigurationScreen() {
 
     saveConfig({ gallonsNeeded: parsedGallons, fuelEconomy: parsedMpg });
     setErrorMessage('');
-    router.replace('/(tabs)');
+    router.replace('/location-access');
   };
 
   return (
