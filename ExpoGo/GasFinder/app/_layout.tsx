@@ -50,6 +50,7 @@ export default function RootLayout() {
             <Stack.Screen name="fuel-configuration" options={{ headerShown: false }} />
             <Stack.Screen name="location-access" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="station-details" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ headerShown: false, presentation: 'modal' }} />
           </Stack>
           <StatusBar style="light" />

@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { type FuelType, type SortOrder, useFilters } from "@/hooks/use-filters";
@@ -141,21 +141,13 @@ function formatDistanceLabel(distanceMiles: number | null): string {
 
 function StationCard({
   row,
-  expanded,
   onPress,
-  onOpenMaps,
   selectedFuel,
 }: {
   row: DisplayRow;
-  expanded: boolean;
   onPress: () => void;
-  onOpenMaps: () => void;
   selectedFuel: FuelType;
 }) {
-  const otherFuels = (Object.keys(fuelLabels) as FuelType[]).filter(
-    (fuel) => fuel !== selectedFuel && getPriceForFuel(row, fuel) != null
-  );
-
   return (
     <View style={styles.stationCardWrap}>
       <Pressable onPress={onPress} style={({ pressed }) => [styles.stationCard, pressed && styles.stationCardPressed]}>
@@ -177,31 +169,6 @@ function StationCard({
           </View>
         </View>
       </Pressable>
-
-      {expanded && (
-        <View style={styles.stationDetails}>
-          <Text style={styles.detailsHeading}>Trip breakdown</Text>
-          <Text style={styles.detailsText}>Fill-up cost: {money(row.fuelPriceTotal)}</Text>
-          <Text style={styles.detailsText}>Drive cost: {money(row.drivingPrice)}</Text>
-          <Text style={styles.detailsText}>Best trip total: {money(row.totalPrice)}</Text>
-
-          {otherFuels.length > 0 && (
-            <View style={styles.otherFuelWrap}>
-              {otherFuels.map((fuel) => (
-                <View key={fuel} style={styles.otherFuelChip}>
-                  <Text style={styles.otherFuelLabel}>{fuelLabels[fuel]}</Text>
-                  <Text style={styles.otherFuelValue}>{money(getPriceForFuel(row, fuel))}</Text>
-                  <Text style={styles.otherFuelUpdated}>{formatUpdatedLabel(getUpdatedForFuel(row, fuel))}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <Pressable onPress={onOpenMaps} style={styles.mapsButton}>
-            <Text style={styles.mapsButtonText}>Open in Maps</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }
@@ -212,7 +179,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
-  const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
   const { maxDistance, selectedFuel, sortOrder } = useFilters();
   const { fuelEconomy, gallonsNeeded, isConfigured, isLocationStepComplete } = useVehicleConfig();
 
@@ -293,11 +259,6 @@ export default function HomeScreen() {
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
   }, [fuelEconomy, gallonsNeeded, maxDistance, rows, selectedFuel, sortOrder, userCoords]);
-
-  const openInMaps = useCallback(async (row: DisplayRow) => {
-    const query = encodeURIComponent(formatStationAddress(row));
-    await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-  }, []);
 
   const onFetchPress = useCallback(async () => {
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -432,9 +393,12 @@ export default function HomeScreen() {
           {visibleRows.map((row) => (
             <StationCard
               key={row.id}
-              expanded={expandedStationId === row.id}
-              onOpenMaps={() => void openInMaps(row)}
-              onPress={() => setExpandedStationId((current) => (current === row.id ? null : row.id))}
+              onPress={() =>
+                router.push({
+                  pathname: "/station-details",
+                  params: { station: JSON.stringify(row) },
+                } as never)
+              }
               row={row}
               selectedFuel={selectedFuel}
             />
