@@ -5,6 +5,7 @@ import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { FiltersProvider } from '@/hooks/use-filters';
 import { VehicleConfigProvider } from '@/hooks/use-vehicle-config';
 
 export const unstable_settings = {
@@ -42,16 +43,18 @@ export default function RootLayout() {
 
   return (
     <VehicleConfigProvider>
-      <ThemeProvider value={navigationTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="fuel-configuration" options={{ headerShown: false }} />
-          <Stack.Screen name="location-access" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="light" />
-      </ThemeProvider>
+      <FiltersProvider>
+        <ThemeProvider value={navigationTheme}>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="fuel-configuration" options={{ headerShown: false }} />
+            <Stack.Screen name="location-access" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ headerShown: false, presentation: 'modal' }} />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </FiltersProvider>
     </VehicleConfigProvider>
   );
 }

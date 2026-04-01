@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { type FuelType, type SortOrder, useFilters } from "@/hooks/use-filters";
 import { useVehicleConfig } from "@/hooks/use-vehicle-config";
-
-type FuelType = "regular" | "midgrade" | "premium" | "diesel";
-type SortOrder = "best" | "cheapest" | "most_expensive" | "closest";
 
 type GasRow = {
   id: number;
@@ -66,10 +64,10 @@ const fuelLabels: Record<FuelType, string> = {
 };
 
 const sortLabels: Record<SortOrder, string> = {
-  best: "Best",
   cheapest: "Cheapest",
   most_expensive: "Highest",
   closest: "Closest",
+  furthest: "Furthest",
 };
 
 function getPriceForFuel(row: GasRow, fuel: FuelType): number | null {
@@ -214,10 +212,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [userCoords, setUserCoords] = useState<UserCoords | null>(null);
-  const [selectedFuel, setSelectedFuel] = useState<FuelType>("regular");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("cheapest");
   const [expandedStationId, setExpandedStationId] = useState<number | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const { maxDistance, selectedFuel, sortOrder } = useFilters();
   const { fuelEconomy, gallonsNeeded, isConfigured, isLocationStepComplete } = useVehicleConfig();
 
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -260,8 +256,7 @@ export default function HomeScreen() {
 
         const distancePenalty = distanceMiles != null ? distanceMiles * DISTANCE_PENALTY_PER_MILE : null;
 
-        const fuelPriceTotal =
-          price != null && gallonsNeeded != null && gallonsNeeded > 0 ? gallonsNeeded * price : null;
+        const fuelPriceTotal = price != null && gallonsNeeded != null && gallonsNeeded > 0 ? gallonsNeeded * price : null;
 
         const totalPrice =
           drivingPrice != null && fuelPriceTotal != null ? fuelPriceTotal + drivingPrice : null;
@@ -277,26 +272,27 @@ export default function HomeScreen() {
         };
       });
 
-    if (sortOrder === "closest") {
-      const withDistance = rowsWithMetrics.filter((row) => row.distanceMiles != null);
-      const withoutDistance = rowsWithMetrics.filter((row) => row.distanceMiles == null);
-      const sorted = [...withDistance].sort((a, b) => (a.distanceMiles as number) - (b.distanceMiles as number));
+    const withinDistance = rowsWithMetrics.filter(
+      (row) => row.distanceMiles == null || row.distanceMiles <= maxDistance
+    );
+
+    if (sortOrder === "closest" || sortOrder === "furthest") {
+      const withDistance = withinDistance.filter((row) => row.distanceMiles != null);
+      const withoutDistance = withinDistance.filter((row) => row.distanceMiles == null);
+      const sorted = [...withDistance].sort((a, b) =>
+        sortOrder === "closest"
+          ? (a.distanceMiles as number) - (b.distanceMiles as number)
+          : (b.distanceMiles as number) - (a.distanceMiles as number)
+      );
       return [...sorted, ...withoutDistance];
     }
 
-    if (sortOrder === "best") {
-      const withTotal = rowsWithMetrics.filter((row) => row.totalPrice != null);
-      const withoutTotal = rowsWithMetrics.filter((row) => row.totalPrice == null);
-      const sorted = [...withTotal].sort((a, b) => (a.totalPrice as number) - (b.totalPrice as number));
-      return [...sorted, ...withoutTotal];
-    }
-
-    return [...rowsWithMetrics].sort((a, b) => {
+    return [...withinDistance].sort((a, b) => {
       const aPrice = getPriceForFuel(a, selectedFuel) as number;
       const bPrice = getPriceForFuel(b, selectedFuel) as number;
       return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
     });
-  }, [fuelEconomy, gallonsNeeded, rows, selectedFuel, sortOrder, userCoords]);
+  }, [fuelEconomy, gallonsNeeded, maxDistance, rows, selectedFuel, sortOrder, userCoords]);
 
   const openInMaps = useCallback(async (row: DisplayRow) => {
     const query = encodeURIComponent(formatStationAddress(row));
@@ -375,7 +371,7 @@ export default function HomeScreen() {
       <View style={styles.screen}>
         <View style={styles.header}>
           <Text style={styles.brand}>FuelFinder</Text>
-          <Pressable onPress={() => setShowFilters((current) => !current)} style={styles.headerIconButton}>
+          <Pressable onPress={() => router.push("/modal")} style={styles.headerIconButton}>
             <Image contentFit="contain" source={filterIcon} style={styles.headerIcon} />
           </Pressable>
         </View>
@@ -397,7 +393,7 @@ export default function HomeScreen() {
             {availableFuelChips.map((fuel) => (
               <Pressable
                 key={fuel}
-                onPress={() => setSelectedFuel(fuel)}
+                onPress={() => router.push("/modal")}
                 style={[styles.fuelChip, selectedFuel === fuel && styles.fuelChipActive]}>
                 <Text style={[styles.fuelChipText, selectedFuel === fuel && styles.fuelChipTextActive]}>
                   {fuelLabels[fuel]}
@@ -406,29 +402,12 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {showFilters && (
-            <View style={styles.filterPanel}>
-              <Text style={styles.filterPanelLabel}>Sort by</Text>
-              <View style={styles.filterChipRow}>
-                {(Object.keys(sortLabels) as SortOrder[]).map((option) => (
-                  <Pressable
-                    key={option}
-                    onPress={() => setSortOrder(option)}
-                    style={[styles.filterChip, sortOrder === option && styles.filterChipActive]}>
-                    <Text style={[styles.filterChipText, sortOrder === option && styles.filterChipTextActive]}>
-                      {sortLabels[option]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {!availableFuelChips.includes("midgrade") && rows.some((row) => row.midgrade != null) && (
-                <Pressable onPress={() => setSelectedFuel("midgrade")} style={styles.midgradeShortcut}>
-                  <Text style={styles.midgradeShortcutText}>Show Midgrade Prices</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
+          <Pressable onPress={() => router.push("/modal")} style={styles.filterSummary}>
+            <Text style={styles.filterSummaryTitle}>Filters</Text>
+            <Text style={styles.filterSummaryText}>
+              {fuelLabels[selectedFuel]} • {sortLabels[sortOrder]} • {maxDistance} mi
+            </Text>
+          </Pressable>
 
           {!canFetch && (
             <View style={styles.statusCard}>
@@ -600,6 +579,29 @@ const styles = StyleSheet.create({
   },
   fuelChipTextActive: {
     color: "#442100",
+  },
+  filterSummary: {
+    backgroundColor: "#131313",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  filterSummaryTitle: {
+    color: "#f5f5f5",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  filterSummaryText: {
+    color: "#ff9f4a",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   filterPanel: {
     backgroundColor: "#131313",
