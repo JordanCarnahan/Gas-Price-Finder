@@ -1,51 +1,90 @@
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { type DimensionValue, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type FuelType, type SortOrder, useFilters } from "@/hooks/use-filters";
+import { type DistanceSortOrder, type FuelType, type PriceSortOrder, useFilters } from "@/hooks/use-filters";
 
-const closeIcon = "https://www.figma.com/api/mcp/asset/98612d6f-9aa2-49ef-be0f-aa8ffeac6c0c";
-const distanceIcon = "https://www.figma.com/api/mcp/asset/46295102-437d-48d5-907b-2b4ca169eaae";
-const priceIcon = "https://www.figma.com/api/mcp/asset/791691ea-5d99-4d51-a54e-dacf25a79f38";
+const closeIcon = "https://www.figma.com/api/mcp/asset/17c940cf-6004-4235-9085-0547c1e42973";
+const distanceIcon = "https://www.figma.com/api/mcp/asset/227fbfbd-a96e-4021-9e0f-beab36ffdbf5";
+const priceIcon = "https://www.figma.com/api/mcp/asset/ac81372b-fa46-44a1-9384-7e929d6c7441";
+const timeCostIcon = "https://www.figma.com/api/mcp/asset/4de62d4f-d9ef-4bc1-9996-90c5c2b74d27";
 
 const DISTANCE_OPTIONS = [5, 10, 20] as const;
+const DEFAULT_TIME_COST = 0.5;
 
 const fuelButtonLabels: Record<FuelType, string> = {
   diesel: "Diesel",
   regular: "Regular",
-  midgrade: "Plus",
+  midgrade: "Midgrade",
   premium: "Premium",
 };
 
-function getDistanceThumbLeft(distance: number): DimensionValue {
+function getDistanceThumbLeft(distance: number) {
   const index = DISTANCE_OPTIONS.indexOf(distance as (typeof DISTANCE_OPTIONS)[number]);
   const normalizedIndex = index === -1 ? 1 : index;
-  return `${normalizedIndex * 50}%`;
+  return `${normalizedIndex * 50}%` as const;
+}
+
+function formatTimeCostInput(value: number) {
+  return value.toFixed(2);
+}
+
+function sanitizeMoneyInput(value: string) {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  const [wholePart = "", ...decimalParts] = cleaned.split(".");
+  const decimalPart = decimalParts.join("").slice(0, 2);
+
+  if (cleaned.startsWith(".")) {
+    return `0.${decimalPart}`;
+  }
+
+  return decimalPart.length > 0 ? `${wholePart}.${decimalPart}` : wholePart;
 }
 
 export default function ModalScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { applyFilters, maxDistance, selectedFuel, sortOrder } = useFilters();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const { applyFilters, distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile } = useFilters();
   const [draftFuel, setDraftFuel] = useState<FuelType>(selectedFuel);
-  const [draftSortOrder, setDraftSortOrder] = useState<SortOrder>(sortOrder);
+  const [draftDistanceSortOrder, setDraftDistanceSortOrder] = useState<DistanceSortOrder | null>(distanceSortOrder);
+  const [draftPriceSortOrder, setDraftPriceSortOrder] = useState<PriceSortOrder | null>(priceSortOrder);
   const [draftMaxDistance, setDraftMaxDistance] = useState<number>(maxDistance);
+  const [draftTimeCostInput, setDraftTimeCostInput] = useState(formatTimeCostInput(timeCostPerMile));
 
   useEffect(() => {
     setDraftFuel(selectedFuel);
-    setDraftSortOrder(sortOrder);
+    setDraftDistanceSortOrder(distanceSortOrder);
+    setDraftPriceSortOrder(priceSortOrder);
     setDraftMaxDistance(maxDistance);
-  }, [maxDistance, selectedFuel, sortOrder]);
+    setDraftTimeCostInput(formatTimeCostInput(timeCostPerMile));
+  }, [distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile]);
 
   const sliderProgress = useMemo(() => {
     const index = DISTANCE_OPTIONS.indexOf(draftMaxDistance as (typeof DISTANCE_OPTIONS)[number]);
     return index <= 0 ? "0%" : index === 1 ? "50%" : "100%";
   }, [draftMaxDistance]);
 
+  const footerBottom = Math.max(insets.bottom, 8);
+  const contentBottomPadding = 168 + footerBottom;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.screen}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+        style={styles.screen}>
         <View style={styles.headerWrap}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -58,16 +97,20 @@ export default function ModalScreen() {
           </View>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomPadding }]}
+          keyboardShouldPersistTaps="handled"
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Fuel Type</Text>
-            <View style={styles.fuelGrid}>
-              {(["diesel", "regular", "midgrade", "premium"] as FuelType[]).map((fuel) => (
+            <View style={styles.fuelChipRow}>
+              {(["regular", "midgrade", "premium", "diesel"] as FuelType[]).map((fuel) => (
                 <Pressable
                   key={fuel}
                   onPress={() => setDraftFuel(fuel)}
-                  style={[styles.fuelButton, draftFuel === fuel && styles.fuelButtonActive]}>
-                  <Text style={[styles.fuelButtonText, draftFuel === fuel && styles.fuelButtonTextActive]}>
+                  style={[styles.fuelChip, draftFuel === fuel && styles.fuelChipActive]}>
+                  <Text style={[styles.fuelChipText, draftFuel === fuel && styles.fuelChipTextActive]}>
                     {fuelButtonLabels[fuel]}
                   </Text>
                 </Pressable>
@@ -114,30 +157,34 @@ export default function ModalScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sort Results By</Text>
 
-            <View style={styles.sortCard}>
+            <View style={[styles.sortCard, draftDistanceSortOrder && styles.sortCardActive]}>
               <View style={styles.sortLabelWrap}>
                 <Image contentFit="contain" source={distanceIcon} style={styles.sortIconSmall} />
                 <Text style={styles.sortLabel}>Distance</Text>
               </View>
               <View style={styles.toggleWrap}>
                 <Pressable
-                  onPress={() => setDraftSortOrder("closest")}
-                  style={[styles.toggleButton, draftSortOrder === "closest" && styles.toggleButtonActive]}>
+                  onPress={() =>
+                    setDraftDistanceSortOrder((current) => (current === "closest" ? null : "closest"))
+                  }
+                  style={[styles.toggleButton, draftDistanceSortOrder === "closest" && styles.toggleButtonActive]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftSortOrder === "closest" && styles.toggleButtonTextActive,
+                      draftDistanceSortOrder === "closest" && styles.toggleButtonTextActive,
                     ]}>
                     ASC
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => setDraftSortOrder("furthest")}
-                  style={[styles.toggleButton, draftSortOrder === "furthest" && styles.toggleButtonActive]}>
+                  onPress={() =>
+                    setDraftDistanceSortOrder((current) => (current === "furthest" ? null : "furthest"))
+                  }
+                  style={[styles.toggleButton, draftDistanceSortOrder === "furthest" && styles.toggleButtonActive]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftSortOrder === "furthest" && styles.toggleButtonTextActive,
+                      draftDistanceSortOrder === "furthest" && styles.toggleButtonTextActive,
                     ]}>
                     DESC
                   </Text>
@@ -145,45 +192,94 @@ export default function ModalScreen() {
               </View>
             </View>
 
-            <View style={[styles.sortCard, styles.sortCardHighlighted]}>
+            <View style={[styles.sortCard, draftPriceSortOrder && styles.sortCardActive]}>
               <View style={styles.sortLabelWrap}>
                 <Image contentFit="contain" source={priceIcon} style={styles.sortIconWide} />
                 <Text style={styles.sortLabel}>Price</Text>
               </View>
               <View style={styles.toggleWrap}>
                 <Pressable
-                  onPress={() => setDraftSortOrder("cheapest")}
-                  style={[styles.toggleButton, draftSortOrder === "cheapest" && styles.toggleButtonActive]}>
+                  onPress={() =>
+                    setDraftPriceSortOrder((current) => (current === "cheapest" ? null : "cheapest"))
+                  }
+                  style={[styles.toggleButton, draftPriceSortOrder === "cheapest" && styles.toggleButtonActive]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftSortOrder === "cheapest" && styles.toggleButtonTextActive,
+                      draftPriceSortOrder === "cheapest" && styles.toggleButtonTextActive,
                     ]}>
                     LOW-HIGH
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => setDraftSortOrder("most_expensive")}
-                  style={[styles.toggleButton, draftSortOrder === "most_expensive" && styles.toggleButtonActive]}>
+                  onPress={() =>
+                    setDraftPriceSortOrder((current) => (current === "most_expensive" ? null : "most_expensive"))
+                  }
+                  style={[
+                    styles.toggleButton,
+                    draftPriceSortOrder === "most_expensive" && styles.toggleButtonActive,
+                  ]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftSortOrder === "most_expensive" && styles.toggleButtonTextActive,
+                      draftPriceSortOrder === "most_expensive" && styles.toggleButtonTextActive,
                     ]}>
                     HIGH-LOW
                   </Text>
                 </Pressable>
               </View>
             </View>
-          </View>
-        </View>
 
-        <View style={styles.footer}>
+            <View style={[styles.timeCostCard, styles.sortCardActive]}>
+              <View style={styles.timeCostHeader}>
+                <View style={styles.sortLabelWrap}>
+                  <Image contentFit="contain" source={timeCostIcon} style={styles.timeCostIcon} />
+                  <Text style={styles.sortLabel}>Time-Cost</Text>
+                </View>
+                <Text style={styles.timeCostPrompt}>HOW MUCH IS A MILE WORTH TO YOU?</Text>
+              </View>
+
+              <View style={styles.timeCostInputRow}>
+                <TextInput
+                  inputMode="decimal"
+                  keyboardType="decimal-pad"
+                  onBlur={() => {
+                    if (draftTimeCostInput.trim().length === 0) {
+                      setDraftTimeCostInput(formatTimeCostInput(DEFAULT_TIME_COST));
+                      return;
+                    }
+
+                    const parsedValue = Number(draftTimeCostInput);
+                    if (Number.isFinite(parsedValue) && parsedValue >= 0) {
+                      setDraftTimeCostInput(formatTimeCostInput(parsedValue));
+                    }
+                  }}
+                  onChangeText={(value) => setDraftTimeCostInput(sanitizeMoneyInput(value))}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 150);
+                  }}
+                  placeholder="0.50"
+                  placeholderTextColor="#80654f"
+                  selectionColor="#ff9f4a"
+                  style={styles.timeCostInput}
+                  value={draftTimeCostInput}
+                />
+                <Text style={styles.timeCostSuffix}>$ per mile</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={[styles.footer, { bottom: footerBottom }]}>
           <Pressable
             onPress={() => {
               setDraftFuel("regular");
-              setDraftSortOrder("cheapest");
+              setDraftDistanceSortOrder(null);
+              setDraftPriceSortOrder(null);
               setDraftMaxDistance(10);
+              setDraftTimeCostInput(formatTimeCostInput(DEFAULT_TIME_COST));
             }}
             style={styles.resetButton}>
             <Text style={styles.resetButtonText}>Reset</Text>
@@ -191,10 +287,15 @@ export default function ModalScreen() {
 
           <Pressable
             onPress={() => {
+              const parsedTimeCost = Number(draftTimeCostInput);
+
               applyFilters({
                 selectedFuel: draftFuel,
-                sortOrder: draftSortOrder,
+                distanceSortOrder: draftDistanceSortOrder,
+                priceSortOrder: draftPriceSortOrder,
                 maxDistance: draftMaxDistance,
+                timeCostPerMile:
+                  Number.isFinite(parsedTimeCost) && parsedTimeCost >= 0 ? parsedTimeCost : DEFAULT_TIME_COST,
               });
               router.back();
             }}
@@ -202,7 +303,7 @@ export default function ModalScreen() {
             <Text style={styles.applyButtonText}>Apply Filters</Text>
           </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -256,18 +357,11 @@ const styles = StyleSheet.create({
     letterSpacing: -1.2,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 24,
-    paddingBottom: 232,
     gap: 40,
   },
   section: {
     gap: 16,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
   },
   sectionTitle: {
     color: "#e4e2e1",
@@ -275,33 +369,36 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontWeight: "700",
   },
-  fuelGrid: {
+  fuelChipRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+    gap: 8,
   },
-  fuelButton: {
-    width: "48.2%",
-    minHeight: 56,
-    borderRadius: 12,
+  fuelChip: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 6,
     backgroundColor: "#474747",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
-  fuelButtonActive: {
+  fuelChipActive: {
     backgroundColor: "#ff9f4a",
   },
-  fuelButtonText: {
+  fuelChipText: {
     color: "#adaaaa",
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: "500",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
-  fuelButtonTextActive: {
-    color: "#512800",
-    fontWeight: "600",
+  fuelChipTextActive: {
+    color: "#442100",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
   },
   distanceValue: {
     color: "#ff9f4a",
@@ -347,8 +444,8 @@ const styles = StyleSheet.create({
   },
   sliderHitArea: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
+    top: -12,
+    bottom: -12,
     width: "34%",
   },
   sliderHitAreaStart: {
@@ -372,16 +469,16 @@ const styles = StyleSheet.create({
   },
   sortCard: {
     backgroundColor: "#131313",
+    borderWidth: 2,
+    borderColor: "#422f1e",
     borderRadius: 16,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  sortCardHighlighted: {
-    borderWidth: 2,
+  sortCardActive: {
     borderColor: "rgba(255,159,74,0.2)",
-    padding: 18,
   },
   sortLabelWrap: {
     flexDirection: "row",
@@ -429,20 +526,69 @@ const styles = StyleSheet.create({
   toggleButtonTextActive: {
     color: "#512800",
   },
+  timeCostCard: {
+    backgroundColor: "#131313",
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 18,
+  },
+  timeCostHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  timeCostIcon: {
+    width: 24,
+    height: 24,
+  },
+  timeCostPrompt: {
+    flex: 1,
+    color: "#adaaaa",
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: "700",
+    letterSpacing: 2,
+    textAlign: "center",
+  },
+  timeCostInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 28,
+  },
+  timeCostInput: {
+    width: 128,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: "#2c2c2c",
+    color: "#ff9f4a",
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  timeCostSuffix: {
+    color: "#ff9f4a",
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: "700",
+  },
   footer: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 8,
     paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 24,
+    paddingBottom: 24,
     flexDirection: "row",
     gap: 16,
     backgroundColor: "rgba(14,14,14,0.8)",
   },
   resetButton: {
-    flex: 1,
+    width: 124,
     minHeight: 56,
     borderRadius: 999,
     backgroundColor: "#262626",
@@ -457,7 +603,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   applyButton: {
-    flex: 1.6,
+    flex: 1,
     minHeight: 56,
     borderRadius: 999,
     alignItems: "center",

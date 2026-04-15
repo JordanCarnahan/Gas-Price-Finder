@@ -1,12 +1,15 @@
 import { createContext, type PropsWithChildren, useContext, useMemo, useState } from "react";
 
 export type FuelType = "regular" | "midgrade" | "premium" | "diesel";
-export type SortOrder = "cheapest" | "most_expensive" | "closest" | "furthest";
+export type DistanceSortOrder = "closest" | "furthest";
+export type PriceSortOrder = "cheapest" | "most_expensive";
 
 type FiltersState = {
   selectedFuel: FuelType;
-  sortOrder: SortOrder;
+  distanceSortOrder: DistanceSortOrder | null;
+  priceSortOrder: PriceSortOrder | null;
   maxDistance: number;
+  timeCostPerMile: number;
 };
 
 type FiltersContextValue = FiltersState & {
@@ -17,8 +20,10 @@ type FiltersContextValue = FiltersState & {
 
 const DEFAULT_FILTERS: FiltersState = {
   selectedFuel: "regular",
-  sortOrder: "cheapest",
+  distanceSortOrder: null,
+  priceSortOrder: null,
   maxDistance: 10,
+  timeCostPerMile: 0.5,
 };
 
 const FiltersContext = createContext<FiltersContextValue | null>(null);

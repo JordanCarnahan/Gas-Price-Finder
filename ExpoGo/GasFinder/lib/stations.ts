@@ -1,4 +1,4 @@
-import { type FuelType, type SortOrder } from "@/hooks/use-filters";
+import { type DistanceSortOrder, type FuelType, type PriceSortOrder } from "@/hooks/use-filters";
 
 export type GasRow = {
   id: number;
@@ -28,7 +28,7 @@ export type UserCoords = {
 export type DisplayRow = GasRow & {
   distanceMiles: number | null;
   drivingFuelCost: number | null;
-  distancePenalty: number | null;
+  timeCostTotal: number | null;
   drivingPrice: number | null;
   fuelPriceTotal: number | null;
   totalPrice: number | null;
@@ -39,7 +39,6 @@ export const BIOLA_COORDS: UserCoords = {
   longitude: -117.9874,
 };
 
-export const DISTANCE_PENALTY_PER_MILE = 0.5;
 export const HOME_FUEL_CHIPS: FuelType[] = ["regular", "midgrade", "premium", "diesel"];
 
 export const fuelLabels: Record<FuelType, string> = {
@@ -47,13 +46,6 @@ export const fuelLabels: Record<FuelType, string> = {
   midgrade: "Midgrade",
   premium: "Premium",
   diesel: "Diesel",
-};
-
-export const sortLabels: Record<SortOrder, string> = {
-  cheapest: "Cheapest",
-  most_expensive: "Highest",
-  closest: "Closest",
-  furthest: "Furthest",
 };
 
 export function getStationKey(row: Pick<GasRow, "station_id" | "station_name" | "address" | "city" | "id">) {
@@ -155,16 +147,20 @@ export function createGoogleMapsUrl(row: Pick<GasRow, "address" | "city">) {
 export function buildVisibleRows({
   rows,
   selectedFuel,
-  sortOrder,
+  distanceSortOrder,
+  priceSortOrder,
   maxDistance,
+  timeCostPerMile,
   userCoords,
   fuelEconomy,
   gallonsNeeded,
 }: {
   rows: GasRow[];
   selectedFuel: FuelType;
-  sortOrder: SortOrder;
+  distanceSortOrder: DistanceSortOrder | null;
+  priceSortOrder: PriceSortOrder | null;
   maxDistance: number;
+  timeCostPerMile: number;
   userCoords: UserCoords | null;
   fuelEconomy: number | null;
   gallonsNeeded: number | null;
@@ -178,25 +174,28 @@ export function buildVisibleRows({
           ? haversineMiles(userCoords, { latitude: row.latitude, longitude: row.longitude })
           : null;
 
-      const drivingPrice =
-        price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
-          ? (distanceMiles / fuelEconomy) * price + distanceMiles * DISTANCE_PENALTY_PER_MILE
-          : null;
-
       const drivingFuelCost =
         price != null && distanceMiles != null && fuelEconomy != null && fuelEconomy > 0
           ? (distanceMiles / fuelEconomy) * price
           : null;
 
-      const distancePenalty = distanceMiles != null ? distanceMiles * DISTANCE_PENALTY_PER_MILE : null;
-      const fuelPriceTotal = price != null && gallonsNeeded != null && gallonsNeeded > 0 ? gallonsNeeded * price : null;
-      const totalPrice = drivingPrice != null && fuelPriceTotal != null ? fuelPriceTotal + drivingPrice : null;
+      const timeCostTotal =
+        distanceMiles != null && Number.isFinite(timeCostPerMile) && timeCostPerMile >= 0
+          ? distanceMiles * timeCostPerMile
+          : null;
+      const fuelPriceTotal =
+        price != null && gallonsNeeded != null && gallonsNeeded > 0 ? gallonsNeeded * price : null;
+      const drivingPrice =
+        drivingFuelCost != null || timeCostTotal != null
+          ? (drivingFuelCost ?? 0) + (timeCostTotal ?? 0)
+          : null;
+      const totalPrice = fuelPriceTotal != null ? fuelPriceTotal + (timeCostTotal ?? 0) : null;
 
       return {
         ...row,
         distanceMiles,
         drivingFuelCost,
-        distancePenalty,
+        timeCostTotal,
         drivingPrice,
         fuelPriceTotal,
         totalPrice,
@@ -207,21 +206,66 @@ export function buildVisibleRows({
     (row) => row.distanceMiles == null || row.distanceMiles <= maxDistance
   );
 
-  if (sortOrder === "closest" || sortOrder === "furthest") {
-    const withDistance = withinDistance.filter((row) => row.distanceMiles != null);
-    const withoutDistance = withinDistance.filter((row) => row.distanceMiles == null);
-    const sorted = [...withDistance].sort((a, b) =>
-      sortOrder === "closest"
-        ? (a.distanceMiles as number) - (b.distanceMiles as number)
-        : (b.distanceMiles as number) - (a.distanceMiles as number)
-    );
-
-    return [...sorted, ...withoutDistance];
+  if (!distanceSortOrder && !priceSortOrder) {
+    return withinDistance;
   }
 
+  const compareDistance = (a: DisplayRow, b: DisplayRow) => {
+    if (!distanceSortOrder) {
+      return 0;
+    }
+
+    if (a.distanceMiles == null && b.distanceMiles == null) {
+      return 0;
+    }
+
+    if (a.distanceMiles == null) {
+      return 1;
+    }
+
+    if (b.distanceMiles == null) {
+      return -1;
+    }
+
+    return distanceSortOrder === "closest"
+      ? a.distanceMiles - b.distanceMiles
+      : b.distanceMiles - a.distanceMiles;
+  };
+
+  const comparePrice = (a: DisplayRow, b: DisplayRow) => {
+    if (!priceSortOrder) {
+      return 0;
+    }
+
+    const aPrice = getPriceForFuel(a, selectedFuel);
+    const bPrice = getPriceForFuel(b, selectedFuel);
+
+    if (aPrice == null && bPrice == null) {
+      return 0;
+    }
+
+    if (aPrice == null) {
+      return 1;
+    }
+
+    if (bPrice == null) {
+      return -1;
+    }
+
+    return priceSortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
+  };
+
   return [...withinDistance].sort((a, b) => {
-    const aPrice = getPriceForFuel(a, selectedFuel) as number;
-    const bPrice = getPriceForFuel(b, selectedFuel) as number;
-    return sortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
+    const distanceComparison = compareDistance(a, b);
+    if (distanceComparison !== 0) {
+      return distanceComparison;
+    }
+
+    const priceComparison = comparePrice(a, b);
+    if (priceComparison !== 0) {
+      return priceComparison;
+    }
+
+    return a.station_name.localeCompare(b.station_name);
   });
 }

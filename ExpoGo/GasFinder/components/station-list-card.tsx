@@ -81,7 +81,7 @@ export function StationListCard({
         </View>
 
         <View style={styles.rightPricePanel}>
-          <Text style={styles.rightPriceValue}>{money(row.fuelPriceTotal)}</Text>
+          <Text style={styles.rightPriceValue}>{money(row.totalPrice ?? row.fuelPriceTotal)}</Text>
           <Text style={styles.rightPriceCaption}>TOTAL FILL-UP COST</Text>
         </View>
       </View>
