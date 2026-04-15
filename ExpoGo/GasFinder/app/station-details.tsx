@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { FuelFinderTabBar } from "@/components/fuel-finder-tab-bar";
+import { createGoogleMapsUrl } from "@/lib/stations";
+
 const heroImage = "https://www.figma.com/api/mcp/asset/81a0f088-6328-414c-ae88-5e3e3b7c8f53";
 const headerBackIcon = "https://www.figma.com/api/mcp/asset/754cb6fb-663e-405a-a429-1d21a8cb90c1";
 const directionsIcon = "https://www.figma.com/api/mcp/asset/4c441096-b214-4a3a-b22a-a9f894f19008";
 const actionBackIcon = "https://www.figma.com/api/mcp/asset/3d89d777-9e30-468d-a099-ded41d648b97";
-const listIcon = "https://www.figma.com/api/mcp/asset/a28ab0a2-0614-4d75-bc58-518332e3be5a";
-const favoritesIcon = "https://www.figma.com/api/mcp/asset/ab00f2fd-0d88-42fc-ac43-dce1566e98eb";
 
 type StationParams = {
   id: number;
@@ -45,11 +46,11 @@ type GraphPoint = {
   price: number | null;
 };
 
-const fuelCards: Array<{
+const fuelCards: {
   key: FuelKey;
   label: string;
   eta?: boolean;
-}> = [
+}[] = [
   { key: "diesel", label: "Diesel", eta: true },
   { key: "regular", label: "Regular" },
   { key: "midgrade", label: "Plus" },
@@ -330,13 +331,7 @@ export default function StationDetailsScreen() {
 
           <View style={styles.actionsCard}>
             <Pressable
-              onPress={() =>
-                void Linking.openURL(
-                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    station.address ? `${station.address}, ${station.city}` : station.city
-                  )}`
-                )
-              }
+              onPress={() => void Linking.openURL(createGoogleMapsUrl(station))}
               style={styles.directionsButton}>
               <Image contentFit="contain" source={directionsIcon} style={styles.actionIcon} />
               <Text style={styles.directionsButtonText}>Get Directions</Text>
@@ -349,16 +344,7 @@ export default function StationDetailsScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.bottomNav}>
-          <Pressable onPress={() => router.replace("/(tabs)")} style={styles.bottomNavActiveItem}>
-            <Image contentFit="contain" source={listIcon} style={styles.bottomNavActiveIcon} />
-            <Text style={styles.bottomNavActiveLabel}>LIST</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push("/explore")} style={styles.bottomNavItem}>
-            <Image contentFit="contain" source={favoritesIcon} style={styles.bottomNavIcon} />
-            <Text style={styles.bottomNavLabel}>FAVORITES</Text>
-          </Pressable>
-        </View>
+        <FuelFinderTabBar activeTab="list" />
       </View>
     </SafeAreaView>
   );
@@ -375,7 +361,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 118,
+    paddingBottom: 160,
     gap: 16,
   },
   header: {
@@ -624,66 +610,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     fontWeight: "700",
-  },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 86,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
-    paddingHorizontal: 16,
-    paddingTop: 9,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.05)",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: "rgba(14,14,14,0.92)",
-  },
-  bottomNavActiveItem: {
-    minWidth: 96,
-    borderRadius: 999,
-    backgroundColor: "#262626",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 8,
-  },
-  bottomNavItem: {
-    minWidth: 96,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 8,
-    opacity: 0.6,
-  },
-  bottomNavActiveIcon: {
-    width: 18,
-    height: 16,
-  },
-  bottomNavIcon: {
-    width: 20,
-    height: 18,
-  },
-  bottomNavActiveLabel: {
-    marginTop: 4,
-    color: "#ff9f4a",
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: "600",
-    letterSpacing: 1,
-  },
-  bottomNavLabel: {
-    marginTop: 4,
-    color: "#adaaaa",
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: "600",
-    letterSpacing: 1,
   },
   missingState: {
     flex: 1,

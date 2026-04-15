@@ -4,8 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
+import { FavoritesProvider } from '@/hooks/use-favorites';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { FiltersProvider } from '@/hooks/use-filters';
+import { StationsDataProvider } from '@/hooks/use-stations-data';
 import { VehicleConfigProvider } from '@/hooks/use-vehicle-config';
 
 export const unstable_settings = {
@@ -44,17 +46,21 @@ export default function RootLayout() {
   return (
     <VehicleConfigProvider>
       <FiltersProvider>
-        <ThemeProvider value={navigationTheme}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="fuel-configuration" options={{ headerShown: false }} />
-            <Stack.Screen name="location-access" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="station-details" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ headerShown: false, presentation: 'modal' }} />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
+        <StationsDataProvider>
+          <FavoritesProvider>
+            <ThemeProvider value={navigationTheme}>
+              <Stack>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="fuel-configuration" options={{ headerShown: false }} />
+                <Stack.Screen name="location-access" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="station-details" options={{ headerShown: false }} />
+                <Stack.Screen name="modal" options={{ headerShown: false, presentation: 'modal' }} />
+              </Stack>
+              <StatusBar style="light" />
+            </ThemeProvider>
+          </FavoritesProvider>
+        </StationsDataProvider>
       </FiltersProvider>
     </VehicleConfigProvider>
   );

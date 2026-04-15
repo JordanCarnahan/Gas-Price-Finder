@@ -12,6 +12,7 @@ type FiltersState = {
 type FiltersContextValue = FiltersState & {
   applyFilters: (nextFilters: FiltersState) => void;
   resetFilters: () => void;
+  setSelectedFuel: (fuel: FuelType) => void;
 };
 
 const DEFAULT_FILTERS: FiltersState = {
@@ -33,6 +34,12 @@ export function FiltersProvider({ children }: PropsWithChildren) {
       },
       resetFilters: () => {
         setFilters(DEFAULT_FILTERS);
+      },
+      setSelectedFuel: (fuel) => {
+        setFilters((current) => ({
+          ...current,
+          selectedFuel: fuel,
+        }));
       },
     }),
     [filters]
