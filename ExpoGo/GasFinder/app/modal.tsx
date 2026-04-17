@@ -42,14 +42,39 @@ function formatTimeCostInput(value: number) {
 
 function sanitizeMoneyInput(value: string) {
   const cleaned = value.replace(/[^0-9.]/g, "");
-  const [wholePart = "", ...decimalParts] = cleaned.split(".");
-  const decimalPart = decimalParts.join("").slice(0, 2);
 
-  if (cleaned.startsWith(".")) {
-    return `0.${decimalPart}`;
+  if (!cleaned) {
+    return "";
   }
 
-  return decimalPart.length > 0 ? `${wholePart}.${decimalPart}` : wholePart;
+  const firstDecimalIndex = cleaned.indexOf(".");
+
+  if (firstDecimalIndex === -1) {
+    return cleaned;
+  }
+
+  const wholePartRaw = cleaned.slice(0, firstDecimalIndex);
+  const fractionalRaw = cleaned.slice(firstDecimalIndex + 1).replace(/\./g, "");
+  const wholePart = wholePartRaw.length > 0 ? wholePartRaw : "0";
+  const fractionalPart = fractionalRaw.slice(0, 2);
+  const hasTrailingDecimal = fractionalRaw.length === 0 && cleaned.endsWith(".");
+
+  if (hasTrailingDecimal) {
+    return `${wholePart}.`;
+  }
+
+  return `${wholePart}.${fractionalPart}`;
+}
+
+function parseTimeCostInput(value: string) {
+  const normalized = value.trim();
+
+  if (!normalized || normalized === ".") {
+    return null;
+  }
+
+  const parsedValue = Number(normalized);
+  return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : null;
 }
 
 export default function ModalScreen() {
@@ -242,17 +267,16 @@ export default function ModalScreen() {
               <View style={styles.timeCostInputRow}>
                 <TextInput
                   inputMode="decimal"
-                  keyboardType="decimal-pad"
+                  keyboardType={Platform.OS === "ios" ? "decimal-pad" : "numeric"}
                   onBlur={() => {
-                    if (draftTimeCostInput.trim().length === 0) {
+                    const parsedValue = parseTimeCostInput(draftTimeCostInput);
+
+                    if (parsedValue == null) {
                       setDraftTimeCostInput(formatTimeCostInput(DEFAULT_TIME_COST));
                       return;
                     }
 
-                    const parsedValue = Number(draftTimeCostInput);
-                    if (Number.isFinite(parsedValue) && parsedValue >= 0) {
-                      setDraftTimeCostInput(formatTimeCostInput(parsedValue));
-                    }
+                    setDraftTimeCostInput(formatTimeCostInput(parsedValue));
                   }}
                   onChangeText={(value) => setDraftTimeCostInput(sanitizeMoneyInput(value))}
                   onFocus={() => {
@@ -287,15 +311,14 @@ export default function ModalScreen() {
 
           <Pressable
             onPress={() => {
-              const parsedTimeCost = Number(draftTimeCostInput);
+              const parsedTimeCost = parseTimeCostInput(draftTimeCostInput);
 
               applyFilters({
                 selectedFuel: draftFuel,
                 distanceSortOrder: draftDistanceSortOrder,
                 priceSortOrder: draftPriceSortOrder,
                 maxDistance: draftMaxDistance,
-                timeCostPerMile:
-                  Number.isFinite(parsedTimeCost) && parsedTimeCost >= 0 ? parsedTimeCost : DEFAULT_TIME_COST,
+                timeCostPerMile: parsedTimeCost ?? DEFAULT_TIME_COST,
               });
               router.back();
             }}
