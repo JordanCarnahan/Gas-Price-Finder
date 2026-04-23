@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   SafeAreaView,
@@ -55,74 +55,76 @@ export default function FuelConfigurationScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoidingView}>
-        <View style={styles.screen}>
-          <View style={styles.header}>
-            <Text style={styles.brand}>Fuel Finder</Text>
-            <Pressable
-              onPress={() =>
-                setErrorMessage(
-                  'Enter your estimated refill amount and your vehicle MPG to personalize results.',
-                )
-              }
-              style={styles.helpButton}>
-              <Ionicons name="help-circle-outline" size={20} color="#adadad" />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.heroSection}>
-              <Text style={styles.heroTitle}>
-                Optimize Your{'\n'}
-                <Text style={styles.heroAccent}>Journey</Text>
-              </Text>
-              <Text style={styles.heroBody}>
-                Let&apos;s configure your vehicle data to find the most cost-effective stations on
-                your route.
-              </Text>
-            </View>
-
-            <View style={styles.grid}>
-              <InputCard
-                icon={
-                  <MaterialCommunityIcons name="gas-station-outline" size={20} color="#ff9f4a" />
-                }
-                label="Fuel Volume"
-                onChangeText={setGallonsInput}
-                placeholder="00.0"
-                prompt="HOW MUCH GAS DO YOU NEED?"
-                suffix="GAL"
-                value={gallonsInput}
-              />
-              <InputCard
-                icon={<MaterialCommunityIcons name="speedometer" size={20} color="#ff9f4a" />}
-                label="Efficiency"
-                onChangeText={setMpgInput}
-                placeholder="24.5"
-                prompt="WHAT IS YOUR CAR'S MPG?"
-                suffix="MPG"
-                value={mpgInput}
-              />
-            </View>
-
-            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-          </ScrollView>
-
-          <View style={styles.actionBar}>
-            <Pressable
-              onPress={handleContinue}
-              style={[styles.continueButton, !isComplete && styles.continueButtonDisabled]}>
-              <Text style={styles.continueLabel}>Continue</Text>
-              <Ionicons name="arrow-forward" size={20} color="#442100" />
-            </Pressable>
-          </View>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Text style={styles.brand}>Fuel Finder</Text>
+          <Pressable
+            onPress={() =>
+              setErrorMessage(
+                'Enter your estimated refill amount and your vehicle MPG to personalize results.',
+              )
+            }
+            style={styles.helpButton}>
+            <Ionicons name="help-circle-outline" size={20} color="#adadad" />
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.heroSection}>
+            <Text style={styles.heroTitle}>
+              Optimize Your{'\n'}
+              <Text style={styles.heroAccent}>Journey</Text>
+            </Text>
+            <Text style={styles.heroBody}>
+              Let&apos;s configure your vehicle data to find the most cost-effective stations on
+              your route.
+            </Text>
+          </View>
+
+          <View style={styles.grid}>
+            <InputCard
+              icon={<MaterialCommunityIcons name="gas-station-outline" size={20} color="#ff9f4a" />}
+              label="Fuel Volume"
+              onChangeText={setGallonsInput}
+              placeholder="00.0"
+              prompt="HOW MUCH GAS DO YOU NEED?"
+              suffix="GAL"
+              value={gallonsInput}
+            />
+            <InputCard
+              icon={<MaterialCommunityIcons name="speedometer" size={20} color="#ff9f4a" />}
+              label="Efficiency"
+              onChangeText={setMpgInput}
+              placeholder="24.5"
+              prompt="WHAT IS YOUR CAR'S MPG?"
+              suffix="MPG"
+              value={mpgInput}
+            />
+          </View>
+
+          {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+        </ScrollView>
+
+        <View style={styles.actionBar}>
+          <Pressable
+            disabled={!isComplete}
+            onPress={handleContinue}
+            style={[styles.continueButton, !isComplete && styles.continueButtonDisabled]}>
+            <Text style={[styles.continueLabel, !isComplete && styles.continueLabelDisabled]}>
+              Continue
+            </Text>
+            <Ionicons
+              name="arrow-forward"
+              size={20}
+              color={isComplete ? '#442100' : '#707070'}
+            />
+          </Pressable>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -157,10 +159,14 @@ function InputCard({
 
       <View style={styles.inputRow}>
         <TextInput
-          keyboardType="decimal-pad"
+          blurOnSubmit
+          enterKeyHint="done"
+          keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
           onChangeText={onChangeText}
+          onSubmitEditing={Keyboard.dismiss}
           placeholder={placeholder}
           placeholderTextColor="#4a4a4a"
+          returnKeyType="done"
           selectionColor="#ff9f4a"
           style={styles.input}
           value={value}
@@ -175,9 +181,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0e0e0e',
-  },
-  keyboardAvoidingView: {
-    flex: 1,
   },
   screen: {
     flex: 1,
@@ -206,10 +209,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#262626',
   },
   content: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 214,
+    paddingBottom: 32,
     gap: 24,
+  },
+  scrollView: {
+    flex: 1,
   },
   heroSection: {
     gap: 12,
@@ -293,14 +300,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   actionBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    marginTop: 'auto',
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 24,
-    backgroundColor: 'rgba(38,38,38,0.4)',
+    backgroundColor: '#0e0e0e',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#262626',
   },
   continueButton: {
     minHeight: 56,
@@ -317,12 +323,17 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   continueButtonDisabled: {
-    opacity: 0.72,
+    backgroundColor: '#3a3a3a',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   continueLabel: {
     color: '#442100',
     fontSize: 18,
     lineHeight: 28,
     fontWeight: '900',
+  },
+  continueLabelDisabled: {
+    color: '#707070',
   },
 });
