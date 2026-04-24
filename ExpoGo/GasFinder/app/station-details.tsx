@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FuelFinderTabBar } from "@/components/fuel-finder-tab-bar";
 import { createGoogleMapsUrl } from "@/lib/stations";
 
-const heroImage = "https://www.figma.com/api/mcp/asset/81a0f088-6328-414c-ae88-5e3e3b7c8f53";
+const heroImage = require("../assets/images/gas-title-image.png");
 const directionsIcon = "https://www.figma.com/api/mcp/asset/4c441096-b214-4a3a-b22a-a9f894f19008";
 const actionBackIcon = "https://www.figma.com/api/mcp/asset/3d89d777-9e30-468d-a099-ded41d648b97";
 
