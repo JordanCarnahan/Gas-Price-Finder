@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -13,9 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { type DistanceSortOrder, type FuelType, type PriceSortOrder, useFilters } from "@/hooks/use-filters";
+import {
+  type DistanceSortOrder,
+  type FuelType,
+  type PriceSortOrder,
+  type TotalCostSortOrder,
+  useFilters,
+} from "@/hooks/use-filters";
 
-const closeIcon = "https://www.figma.com/api/mcp/asset/17c940cf-6004-4235-9085-0547c1e42973";
 const distanceIcon = "https://www.figma.com/api/mcp/asset/227fbfbd-a96e-4021-9e0f-beab36ffdbf5";
 const priceIcon = "https://www.figma.com/api/mcp/asset/ac81372b-fa46-44a1-9384-7e929d6c7441";
 const timeCostIcon = "https://www.figma.com/api/mcp/asset/4de62d4f-d9ef-4bc1-9996-90c5c2b74d27";
@@ -81,10 +87,21 @@ export default function ModalScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { applyFilters, distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile } = useFilters();
+  const {
+    applyFilters,
+    distanceSortOrder,
+    maxDistance,
+    priceSortOrder,
+    selectedFuel,
+    timeCostPerMile,
+    totalCostSortOrder,
+  } = useFilters();
   const [draftFuel, setDraftFuel] = useState<FuelType>(selectedFuel);
   const [draftDistanceSortOrder, setDraftDistanceSortOrder] = useState<DistanceSortOrder | null>(distanceSortOrder);
   const [draftPriceSortOrder, setDraftPriceSortOrder] = useState<PriceSortOrder | null>(priceSortOrder);
+  const [draftTotalCostSortOrder, setDraftTotalCostSortOrder] = useState<TotalCostSortOrder | null>(
+    totalCostSortOrder
+  );
   const [draftMaxDistance, setDraftMaxDistance] = useState<number>(maxDistance);
   const [draftTimeCostInput, setDraftTimeCostInput] = useState(formatTimeCostInput(timeCostPerMile));
 
@@ -92,9 +109,10 @@ export default function ModalScreen() {
     setDraftFuel(selectedFuel);
     setDraftDistanceSortOrder(distanceSortOrder);
     setDraftPriceSortOrder(priceSortOrder);
+    setDraftTotalCostSortOrder(totalCostSortOrder);
     setDraftMaxDistance(maxDistance);
     setDraftTimeCostInput(formatTimeCostInput(timeCostPerMile));
-  }, [distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile]);
+  }, [distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile, totalCostSortOrder]);
 
   const sliderProgress = useMemo(() => {
     const index = DISTANCE_OPTIONS.indexOf(draftMaxDistance as (typeof DISTANCE_OPTIONS)[number]);
@@ -114,7 +132,7 @@ export default function ModalScreen() {
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Pressable onPress={() => router.back()} style={styles.closeButton}>
-                <Image contentFit="contain" source={closeIcon} style={styles.closeIcon} />
+                <Ionicons color="#ffffff" name="close" size={16} />
               </Pressable>
               <Text style={styles.headerTitle}>Filters</Text>
             </View>
@@ -255,6 +273,51 @@ export default function ModalScreen() {
               </View>
             </View>
 
+            <View style={[styles.sortCard, draftTotalCostSortOrder && styles.sortCardActive]}>
+              <View style={styles.sortLabelWrap}>
+                <Image contentFit="contain" source={priceIcon} style={styles.sortIconWide} />
+                <Text style={styles.sortLabel}>Total Cost</Text>
+              </View>
+              <View style={styles.toggleWrap}>
+                <Pressable
+                  onPress={() =>
+                    setDraftTotalCostSortOrder((current) =>
+                      current === "lowest_total_cost" ? null : "lowest_total_cost"
+                    )
+                  }
+                  style={[
+                    styles.toggleButton,
+                    draftTotalCostSortOrder === "lowest_total_cost" && styles.toggleButtonActive,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.toggleButtonText,
+                      draftTotalCostSortOrder === "lowest_total_cost" && styles.toggleButtonTextActive,
+                    ]}>
+                    LOW-HIGH
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    setDraftTotalCostSortOrder((current) =>
+                      current === "highest_total_cost" ? null : "highest_total_cost"
+                    )
+                  }
+                  style={[
+                    styles.toggleButton,
+                    draftTotalCostSortOrder === "highest_total_cost" && styles.toggleButtonActive,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.toggleButtonText,
+                      draftTotalCostSortOrder === "highest_total_cost" && styles.toggleButtonTextActive,
+                    ]}>
+                    HIGH-LOW
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
             <View style={[styles.timeCostCard, styles.sortCardActive]}>
               <View style={styles.timeCostHeader}>
                 <View style={styles.sortLabelWrap}>
@@ -302,6 +365,7 @@ export default function ModalScreen() {
               setDraftFuel("regular");
               setDraftDistanceSortOrder(null);
               setDraftPriceSortOrder(null);
+              setDraftTotalCostSortOrder("lowest_total_cost");
               setDraftMaxDistance(10);
               setDraftTimeCostInput(formatTimeCostInput(DEFAULT_TIME_COST));
             }}
@@ -317,6 +381,7 @@ export default function ModalScreen() {
                 selectedFuel: draftFuel,
                 distanceSortOrder: draftDistanceSortOrder,
                 priceSortOrder: draftPriceSortOrder,
+                totalCostSortOrder: draftTotalCostSortOrder,
                 maxDistance: draftMaxDistance,
                 timeCostPerMile: parsedTimeCost ?? DEFAULT_TIME_COST,
               });
@@ -358,12 +423,10 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 29,
     height: 29,
+    borderRadius: 14.5,
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeIcon: {
-    width: 14,
-    height: 14,
+    backgroundColor: "#262626",
   },
   headerTitle: {
     color: "#ffffff",

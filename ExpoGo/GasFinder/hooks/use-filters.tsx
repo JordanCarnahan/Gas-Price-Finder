@@ -3,11 +3,13 @@ import { createContext, type PropsWithChildren, useContext, useMemo, useState } 
 export type FuelType = "regular" | "midgrade" | "premium" | "diesel";
 export type DistanceSortOrder = "closest" | "furthest";
 export type PriceSortOrder = "cheapest" | "most_expensive";
+export type TotalCostSortOrder = "lowest_total_cost" | "highest_total_cost";
 
 type FiltersState = {
   selectedFuel: FuelType;
   distanceSortOrder: DistanceSortOrder | null;
   priceSortOrder: PriceSortOrder | null;
+  totalCostSortOrder: TotalCostSortOrder | null;
   maxDistance: number;
   timeCostPerMile: number;
 };
@@ -22,6 +24,7 @@ const DEFAULT_FILTERS: FiltersState = {
   selectedFuel: "regular",
   distanceSortOrder: null,
   priceSortOrder: null,
+  totalCostSortOrder: "lowest_total_cost",
   maxDistance: 10,
   timeCostPerMile: 0.5,
 };

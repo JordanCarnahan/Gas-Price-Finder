@@ -1,4 +1,9 @@
-import { type DistanceSortOrder, type FuelType, type PriceSortOrder } from "@/hooks/use-filters";
+import {
+  type DistanceSortOrder,
+  type FuelType,
+  type PriceSortOrder,
+  type TotalCostSortOrder,
+} from "@/hooks/use-filters";
 
 export type GasRow = {
   id: number;
@@ -149,6 +154,7 @@ export function buildVisibleRows({
   selectedFuel,
   distanceSortOrder,
   priceSortOrder,
+  totalCostSortOrder,
   maxDistance,
   timeCostPerMile,
   userCoords,
@@ -159,6 +165,7 @@ export function buildVisibleRows({
   selectedFuel: FuelType;
   distanceSortOrder: DistanceSortOrder | null;
   priceSortOrder: PriceSortOrder | null;
+  totalCostSortOrder: TotalCostSortOrder | null;
   maxDistance: number;
   timeCostPerMile: number;
   userCoords: UserCoords | null;
@@ -206,7 +213,7 @@ export function buildVisibleRows({
     (row) => row.distanceMiles == null || row.distanceMiles <= maxDistance
   );
 
-  if (!distanceSortOrder && !priceSortOrder) {
+  if (!distanceSortOrder && !priceSortOrder && !totalCostSortOrder) {
     return withinDistance;
   }
 
@@ -255,7 +262,40 @@ export function buildVisibleRows({
     return priceSortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
   };
 
+  const getTotalCost = (row: DisplayRow): number | null =>
+    row.totalPrice ?? row.fuelPriceTotal ?? row.drivingPrice;
+
+  const compareTotalCost = (a: DisplayRow, b: DisplayRow) => {
+    if (!totalCostSortOrder) {
+      return 0;
+    }
+
+    const aTotalCost = getTotalCost(a);
+    const bTotalCost = getTotalCost(b);
+
+    if (aTotalCost == null && bTotalCost == null) {
+      return 0;
+    }
+
+    if (aTotalCost == null) {
+      return 1;
+    }
+
+    if (bTotalCost == null) {
+      return -1;
+    }
+
+    return totalCostSortOrder === "lowest_total_cost"
+      ? aTotalCost - bTotalCost
+      : bTotalCost - aTotalCost;
+  };
+
   return [...withinDistance].sort((a, b) => {
+    const totalCostComparison = compareTotalCost(a, b);
+    if (totalCostComparison !== 0) {
+      return totalCostComparison;
+    }
+
     const distanceComparison = compareDistance(a, b);
     if (distanceComparison !== 0) {
       return distanceComparison;

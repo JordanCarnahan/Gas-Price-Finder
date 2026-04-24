@@ -22,7 +22,15 @@ export default function FavoritesScreen() {
   const router = useRouter();
   const { favoriteStationKeys, isFavorite, toggleFavorite } = useFavorites();
   const { canFetch, errorMessage, loading, refreshStations, rows, userCoords } = useStationsData();
-  const { distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, setSelectedFuel, timeCostPerMile } = useFilters();
+  const {
+    distanceSortOrder,
+    maxDistance,
+    priceSortOrder,
+    selectedFuel,
+    setSelectedFuel,
+    timeCostPerMile,
+    totalCostSortOrder,
+  } = useFilters();
   const { fuelEconomy, gallonsNeeded, isConfigured, isLocationStepComplete } = useVehicleConfig();
 
   useEffect(() => {
@@ -49,13 +57,26 @@ export default function FavoritesScreen() {
         selectedFuel,
         distanceSortOrder,
         priceSortOrder,
+        totalCostSortOrder,
         maxDistance,
         timeCostPerMile,
         userCoords,
         fuelEconomy,
         gallonsNeeded,
       }).filter((row) => favoriteStationKeys.includes(getStationKey(row))),
-    [distanceSortOrder, favoriteStationKeys, fuelEconomy, gallonsNeeded, maxDistance, priceSortOrder, rows, selectedFuel, timeCostPerMile, userCoords]
+    [
+      distanceSortOrder,
+      favoriteStationKeys,
+      fuelEconomy,
+      gallonsNeeded,
+      maxDistance,
+      priceSortOrder,
+      rows,
+      selectedFuel,
+      timeCostPerMile,
+      totalCostSortOrder,
+      userCoords,
+    ]
   );
 
   if (!isConfigured || !isLocationStepComplete) {
