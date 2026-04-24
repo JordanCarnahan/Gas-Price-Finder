@@ -51,10 +51,10 @@ const fuelCards: {
   label: string;
   eta?: boolean;
 }[] = [
-  { key: "diesel", label: "Diesel", eta: true },
-  { key: "regular", label: "Regular" },
-  { key: "midgrade", label: "Plus" },
-  { key: "premium", label: "Premium" },
+  { key: "regular", label: "Regular", eta: true },
+  { key: "premium", label: "Plus" },
+  { key: "midgrade", label: "Mid" },
+  { key: "diesel", label: "Diesel" },
 ];
 
 function parseStation(raw: string | string[] | undefined): StationParams | null {
@@ -308,14 +308,15 @@ export default function StationDetailsScreen() {
                   ) : null}
                 </View>
 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceRowLabel}>CASH</Text>
-                  <Text style={styles.priceRowValue}>{money(cash)}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceRowLabel}>CREDIT</Text>
-                  <Text style={styles.priceRowValue}>{money(credit)}</Text>
+                <View style={styles.priceSplitRow}>
+                  <View style={[styles.pricePanel, styles.pricePanelDark]}>
+                    <Text style={[styles.pricePanelLabel, styles.pricePanelLabelDark]}>CASH</Text>
+                    <Text style={[styles.pricePanelValue, styles.pricePanelValueDark]}>{money(cash)}</Text>
+                  </View>
+                  <View style={[styles.pricePanel, styles.pricePanelAccent]}>
+                    <Text style={[styles.pricePanelLabel, styles.pricePanelLabelAccent]}>CARD</Text>
+                    <Text style={[styles.pricePanelValue, styles.pricePanelValueAccent]}>{money(credit)}</Text>
+                  </View>
                 </View>
               </View>
             );
@@ -394,16 +395,17 @@ const styles = StyleSheet.create({
   },
   heroImage: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.6,
+    opacity: 1,
+    bottom: 100,
   },
   heroOverlay: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderRadius: 12,
     backgroundColor: "rgba(38,38,38,0.55)",
-    padding: 24,
+    padding: 16,
   },
   heroTitle: {
     color: "#ff9f4a",
@@ -421,27 +423,29 @@ const styles = StyleSheet.create({
   sectionTitle: {
     paddingHorizontal: 8,
     color: "#e4e2e1",
-    fontSize: 18,
+    fontSize: 24,
     lineHeight: 28,
     fontWeight: "700",
   },
   priceCard: {
     backgroundColor: "#262626",
     borderRadius: 12,
-    padding: 16,
-    gap: 12,
+    paddingTop: 12,
+    overflow: "hidden",
   },
   priceCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingBottom: 10,
   },
   priceCardLabel: {
-    color: "#adaaaa",
-    fontSize: 10,
+    color: "#ff9f4a",
+    fontSize: 15,
     lineHeight: 15,
     fontWeight: "700",
-    letterSpacing: 1,
+    letterSpacing: 1.4,
   },
   etaBadge: {
     flexDirection: "row",
@@ -454,36 +458,59 @@ const styles = StyleSheet.create({
   },
   etaLabel: {
     color: "#ff9f4a",
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 15,
     fontWeight: "700",
   },
   etaValue: {
     color: "#ffffff",
-    fontSize: 10,
+    fontSize: 12,
     lineHeight: 15,
     fontWeight: "600",
   },
-  priceRow: {
+  priceSplitRow: {
     flexDirection: "row",
+  },
+  pricePanel: {
+    flex: 1,
+    minHeight: 86,
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
   },
-  priceRowLabel: {
-    color: "#adaaaa",
-    fontSize: 10,
-    lineHeight: 15,
-    fontWeight: "700",
+  pricePanelDark: {
+    backgroundColor: "#1a1a1a",
   },
-  priceRowValue: {
-    color: "#ffffff",
-    fontSize: 18,
-    lineHeight: 28,
-    fontWeight: "600",
+  pricePanelAccent: {
+    backgroundColor: "#ff9f4a",
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(0,0,0,0.2)",
   },
-  divider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(72,72,71,0.3)",
+  pricePanelValue: {
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+  },
+  pricePanelValueDark: {
+    color: "#ff9f4a",
+  },
+  pricePanelValueAccent: {
+    color: "#1b1208",
+  },
+  pricePanelLabel: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
+  pricePanelLabelDark: {
+    color: "#ffb06a",
+  },
+  pricePanelLabelAccent: {
+    color: "#1b1208",
   },
   historyCard: {
     backgroundColor: "#262626",
