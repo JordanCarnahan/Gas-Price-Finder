@@ -1,9 +1,10 @@
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -26,7 +27,8 @@ const distanceIcon = "https://www.figma.com/api/mcp/asset/227fbfbd-a96e-4021-9e0
 const priceIcon = "https://www.figma.com/api/mcp/asset/ac81372b-fa46-44a1-9384-7e929d6c7441";
 const timeCostIcon = "https://www.figma.com/api/mcp/asset/4de62d4f-d9ef-4bc1-9996-90c5c2b74d27";
 
-const DISTANCE_OPTIONS = [5, 10, 20] as const;
+const MIN_DISTANCE = 0;
+const MAX_DISTANCE = 20;
 const DEFAULT_TIME_COST = 0.5;
 
 const fuelButtonLabels: Record<FuelType, string> = {
@@ -36,10 +38,8 @@ const fuelButtonLabels: Record<FuelType, string> = {
   premium: "Premium",
 };
 
-function getDistanceThumbLeft(distance: number) {
-  const index = DISTANCE_OPTIONS.indexOf(distance as (typeof DISTANCE_OPTIONS)[number]);
-  const normalizedIndex = index === -1 ? 1 : index;
-  return `${normalizedIndex * 50}%` as const;
+function clampDistance(distance: number) {
+  return Math.min(MAX_DISTANCE, Math.max(MIN_DISTANCE, distance));
 }
 
 function formatTimeCostInput(value: number) {
@@ -102,22 +102,64 @@ export default function ModalScreen() {
   const [draftTotalCostSortOrder, setDraftTotalCostSortOrder] = useState<TotalCostSortOrder | null>(
     totalCostSortOrder
   );
-  const [draftMaxDistance, setDraftMaxDistance] = useState<number>(maxDistance);
+  const [draftMaxDistance, setDraftMaxDistance] = useState<number>(clampDistance(Math.round(maxDistance)));
   const [draftTimeCostInput, setDraftTimeCostInput] = useState(formatTimeCostInput(timeCostPerMile));
+  const [isSlidingDistance, setIsSlidingDistance] = useState(false);
+  const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
+  const [sliderTrackPageX, setSliderTrackPageX] = useState(0);
+  const sliderTrackRef = useRef<View>(null);
 
   useEffect(() => {
     setDraftFuel(selectedFuel);
     setDraftDistanceSortOrder(distanceSortOrder);
     setDraftPriceSortOrder(priceSortOrder);
     setDraftTotalCostSortOrder(totalCostSortOrder);
-    setDraftMaxDistance(maxDistance);
+    setDraftMaxDistance(clampDistance(Math.round(maxDistance)));
     setDraftTimeCostInput(formatTimeCostInput(timeCostPerMile));
   }, [distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile, totalCostSortOrder]);
 
-  const sliderProgress = useMemo(() => {
-    const index = DISTANCE_OPTIONS.indexOf(draftMaxDistance as (typeof DISTANCE_OPTIONS)[number]);
-    return index <= 0 ? "0%" : index === 1 ? "50%" : "100%";
-  }, [draftMaxDistance]);
+  const sliderProgress = useMemo(() => `${(draftMaxDistance / MAX_DISTANCE) * 100}%`, [draftMaxDistance]);
+  const sliderThumbLeft = useMemo(
+    () => (sliderTrackWidth * draftMaxDistance) / MAX_DISTANCE,
+    [draftMaxDistance, sliderTrackWidth]
+  );
+
+  const updateDistanceFromPageX = useCallback((pageX: number) => {
+    if (sliderTrackWidth <= 0) {
+      return;
+    }
+
+    const locationX = pageX - sliderTrackPageX;
+    const clampedX = Math.min(sliderTrackWidth, Math.max(0, locationX));
+    const ratio = clampedX / sliderTrackWidth;
+    const nextDistance = clampDistance(Math.round(ratio * MAX_DISTANCE));
+    setDraftMaxDistance(nextDistance);
+  }, [sliderTrackPageX, sliderTrackWidth]);
+
+  const measureSliderTrack = useCallback(() => {
+    sliderTrackRef.current?.measureInWindow((x) => {
+      setSliderTrackPageX(x);
+    });
+  }, []);
+
+  const sliderPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          setIsSlidingDistance(true);
+          updateDistanceFromPageX(event.nativeEvent.pageX);
+        },
+        onPanResponderMove: (event) => {
+          updateDistanceFromPageX(event.nativeEvent.pageX);
+        },
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: () => setIsSlidingDistance(false),
+        onPanResponderTerminate: () => setIsSlidingDistance(false),
+      }),
+    [updateDistanceFromPageX]
+  );
 
   const footerBottom = Math.max(insets.bottom, 8);
   const contentBottomPadding = 168 + footerBottom;
@@ -144,6 +186,7 @@ export default function ModalScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: contentBottomPadding }]}
           keyboardShouldPersistTaps="handled"
           ref={scrollViewRef}
+          scrollEnabled={!isSlidingDistance}
           showsVerticalScrollIndicator={false}>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Fuel Type</Text>
@@ -168,31 +211,23 @@ export default function ModalScreen() {
             </View>
 
             <View style={styles.sliderCard}>
-              <View style={styles.sliderTrack}>
+              <View
+                onLayout={(event) => {
+                  setSliderTrackWidth(event.nativeEvent.layout.width);
+                  requestAnimationFrame(measureSliderTrack);
+                }}
+                ref={sliderTrackRef}
+                style={styles.sliderTrack}
+                {...sliderPanResponder.panHandlers}>
                 <View style={styles.sliderTrackBase} />
                 <View style={[styles.sliderProgress, { width: sliderProgress }]} />
-                <View style={[styles.sliderThumb, { left: getDistanceThumbLeft(draftMaxDistance) }]} />
-
-                {DISTANCE_OPTIONS.map((distance) => (
-                  <Pressable
-                    key={distance}
-                    onPress={() => setDraftMaxDistance(distance)}
-                    style={[
-                      styles.sliderHitArea,
-                      distance === 5 && styles.sliderHitAreaStart,
-                      distance === 10 && styles.sliderHitAreaMiddle,
-                      distance === 20 && styles.sliderHitAreaEnd,
-                    ]}
-                  />
-                ))}
+                <View style={[styles.sliderThumb, { left: sliderThumbLeft }]} />
               </View>
 
               <View style={styles.sliderLabels}>
-                {DISTANCE_OPTIONS.map((distance) => (
-                  <Pressable key={distance} onPress={() => setDraftMaxDistance(distance)}>
-                    <Text style={styles.sliderLabel}>{`<${distance} miles`}</Text>
-                  </Pressable>
-                ))}
+                <Text style={styles.sliderLabel}>0 mi</Text>
+                <Text style={styles.sliderLabel}>10 mi</Text>
+                <Text style={styles.sliderLabel}>20 mi</Text>
               </View>
             </View>
           </View>
@@ -520,6 +555,7 @@ const styles = StyleSheet.create({
   },
   sliderThumb: {
     position: "absolute",
+    top: 0,
     marginLeft: -12,
     width: 24,
     height: 24,
@@ -527,21 +563,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff9f4a",
     borderWidth: 4,
     borderColor: "#0e0e0e",
-  },
-  sliderHitArea: {
-    position: "absolute",
-    top: -12,
-    bottom: -12,
-    width: "34%",
-  },
-  sliderHitAreaStart: {
-    left: 0,
-  },
-  sliderHitAreaMiddle: {
-    left: "33%",
-  },
-  sliderHitAreaEnd: {
-    right: 0,
   },
   sliderLabels: {
     flexDirection: "row",
