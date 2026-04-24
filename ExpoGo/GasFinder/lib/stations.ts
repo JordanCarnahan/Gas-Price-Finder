@@ -1,8 +1,7 @@
 import {
-  type DistanceSortOrder,
   type FuelType,
-  type PriceSortOrder,
-  type TotalCostSortOrder,
+  type SortDirection,
+  type SortField,
 } from "@/hooks/use-filters";
 
 export type GasRow = {
@@ -152,9 +151,8 @@ export function createGoogleMapsUrl(row: Pick<GasRow, "address" | "city">) {
 export function buildVisibleRows({
   rows,
   selectedFuel,
-  distanceSortOrder,
-  priceSortOrder,
-  totalCostSortOrder,
+  sortField,
+  sortDirection,
   maxDistance,
   timeCostPerMile,
   userCoords,
@@ -163,9 +161,8 @@ export function buildVisibleRows({
 }: {
   rows: GasRow[];
   selectedFuel: FuelType;
-  distanceSortOrder: DistanceSortOrder | null;
-  priceSortOrder: PriceSortOrder | null;
-  totalCostSortOrder: TotalCostSortOrder | null;
+  sortField: SortField;
+  sortDirection: SortDirection;
   maxDistance: number;
   timeCostPerMile: number;
   userCoords: UserCoords | null;
@@ -213,97 +210,46 @@ export function buildVisibleRows({
     (row) => row.distanceMiles == null || row.distanceMiles <= maxDistance
   );
 
-  if (!distanceSortOrder && !priceSortOrder && !totalCostSortOrder) {
-    return withinDistance;
-  }
-
-  const compareDistance = (a: DisplayRow, b: DisplayRow) => {
-    if (!distanceSortOrder) {
-      return 0;
-    }
-
-    if (a.distanceMiles == null && b.distanceMiles == null) {
-      return 0;
-    }
-
-    if (a.distanceMiles == null) {
-      return 1;
-    }
-
-    if (b.distanceMiles == null) {
-      return -1;
-    }
-
-    return distanceSortOrder === "closest"
-      ? a.distanceMiles - b.distanceMiles
-      : b.distanceMiles - a.distanceMiles;
-  };
-
-  const comparePrice = (a: DisplayRow, b: DisplayRow) => {
-    if (!priceSortOrder) {
-      return 0;
-    }
-
-    const aPrice = getPriceForFuel(a, selectedFuel);
-    const bPrice = getPriceForFuel(b, selectedFuel);
-
-    if (aPrice == null && bPrice == null) {
-      return 0;
-    }
-
-    if (aPrice == null) {
-      return 1;
-    }
-
-    if (bPrice == null) {
-      return -1;
-    }
-
-    return priceSortOrder === "cheapest" ? aPrice - bPrice : bPrice - aPrice;
-  };
-
   const getTotalCost = (row: DisplayRow): number | null =>
     row.totalPrice ?? row.fuelPriceTotal ?? row.drivingPrice;
 
-  const compareTotalCost = (a: DisplayRow, b: DisplayRow) => {
-    if (!totalCostSortOrder) {
+  const isAscending = sortDirection === "low_high";
+
+  const compareNullableNumber = (aValue: number | null, bValue: number | null) => {
+    if (aValue == null && bValue == null) {
       return 0;
     }
 
-    const aTotalCost = getTotalCost(a);
-    const bTotalCost = getTotalCost(b);
-
-    if (aTotalCost == null && bTotalCost == null) {
-      return 0;
-    }
-
-    if (aTotalCost == null) {
+    if (aValue == null) {
       return 1;
     }
 
-    if (bTotalCost == null) {
+    if (bValue == null) {
       return -1;
     }
 
-    return totalCostSortOrder === "lowest_total_cost"
-      ? aTotalCost - bTotalCost
-      : bTotalCost - aTotalCost;
+    return isAscending ? aValue - bValue : bValue - aValue;
   };
 
   return [...withinDistance].sort((a, b) => {
-    const totalCostComparison = compareTotalCost(a, b);
-    if (totalCostComparison !== 0) {
-      return totalCostComparison;
-    }
-
-    const distanceComparison = compareDistance(a, b);
-    if (distanceComparison !== 0) {
-      return distanceComparison;
-    }
-
-    const priceComparison = comparePrice(a, b);
-    if (priceComparison !== 0) {
-      return priceComparison;
+    if (sortField === "distance") {
+      const distanceComparison = compareNullableNumber(a.distanceMiles, b.distanceMiles);
+      if (distanceComparison !== 0) {
+        return distanceComparison;
+      }
+    } else if (sortField === "price") {
+      const priceComparison = compareNullableNumber(
+        getPriceForFuel(a, selectedFuel),
+        getPriceForFuel(b, selectedFuel)
+      );
+      if (priceComparison !== 0) {
+        return priceComparison;
+      }
+    } else {
+      const totalCostComparison = compareNullableNumber(getTotalCost(a), getTotalCost(b));
+      if (totalCostComparison !== 0) {
+        return totalCostComparison;
+      }
     }
 
     return a.station_name.localeCompare(b.station_name);

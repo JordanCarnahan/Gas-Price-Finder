@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -8,7 +9,6 @@ import { FuelFinderTabBar } from "@/components/fuel-finder-tab-bar";
 import { createGoogleMapsUrl } from "@/lib/stations";
 
 const heroImage = "https://www.figma.com/api/mcp/asset/81a0f088-6328-414c-ae88-5e3e3b7c8f53";
-const headerBackIcon = "https://www.figma.com/api/mcp/asset/754cb6fb-663e-405a-a429-1d21a8cb90c1";
 const directionsIcon = "https://www.figma.com/api/mcp/asset/4c441096-b214-4a3a-b22a-a9f894f19008";
 const actionBackIcon = "https://www.figma.com/api/mcp/asset/3d89d777-9e30-468d-a099-ded41d648b97";
 
@@ -277,7 +277,7 @@ export default function StationDetailsScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <Pressable onPress={() => router.back()} style={styles.headerBackButton}>
-              <Image contentFit="contain" source={headerBackIcon} style={styles.headerBackIcon} />
+              <Ionicons color="#ffffff" name="close" size={16} />
             </Pressable>
             <Text style={styles.headerBrand}>Fuel Finder</Text>
           </View>
@@ -377,10 +377,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerBackIcon: {
-    width: 18,
-    height: 18,
+    backgroundColor: "#262626",
   },
   headerBrand: {
     color: "#ff9f4a",

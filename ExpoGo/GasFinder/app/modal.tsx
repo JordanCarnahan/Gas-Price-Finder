@@ -16,15 +16,12 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  type DistanceSortOrder,
   type FuelType,
-  type PriceSortOrder,
-  type TotalCostSortOrder,
+  type SortDirection,
+  type SortField,
   useFilters,
 } from "@/hooks/use-filters";
 
-const distanceIcon = "https://www.figma.com/api/mcp/asset/227fbfbd-a96e-4021-9e0f-beab36ffdbf5";
-const priceIcon = "https://www.figma.com/api/mcp/asset/ac81372b-fa46-44a1-9384-7e929d6c7441";
 const timeCostIcon = "https://www.figma.com/api/mcp/asset/4de62d4f-d9ef-4bc1-9996-90c5c2b74d27";
 
 const MIN_DISTANCE = 0;
@@ -89,19 +86,15 @@ export default function ModalScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const {
     applyFilters,
-    distanceSortOrder,
     maxDistance,
-    priceSortOrder,
     selectedFuel,
+    sortDirection,
+    sortField,
     timeCostPerMile,
-    totalCostSortOrder,
   } = useFilters();
   const [draftFuel, setDraftFuel] = useState<FuelType>(selectedFuel);
-  const [draftDistanceSortOrder, setDraftDistanceSortOrder] = useState<DistanceSortOrder | null>(distanceSortOrder);
-  const [draftPriceSortOrder, setDraftPriceSortOrder] = useState<PriceSortOrder | null>(priceSortOrder);
-  const [draftTotalCostSortOrder, setDraftTotalCostSortOrder] = useState<TotalCostSortOrder | null>(
-    totalCostSortOrder
-  );
+  const [draftSortField, setDraftSortField] = useState<SortField>(sortField);
+  const [draftSortDirection, setDraftSortDirection] = useState<SortDirection>(sortDirection);
   const [draftMaxDistance, setDraftMaxDistance] = useState<number>(clampDistance(Math.round(maxDistance)));
   const [draftTimeCostInput, setDraftTimeCostInput] = useState(formatTimeCostInput(timeCostPerMile));
   const [isSlidingDistance, setIsSlidingDistance] = useState(false);
@@ -111,12 +104,11 @@ export default function ModalScreen() {
 
   useEffect(() => {
     setDraftFuel(selectedFuel);
-    setDraftDistanceSortOrder(distanceSortOrder);
-    setDraftPriceSortOrder(priceSortOrder);
-    setDraftTotalCostSortOrder(totalCostSortOrder);
+    setDraftSortField(sortField);
+    setDraftSortDirection(sortDirection);
     setDraftMaxDistance(clampDistance(Math.round(maxDistance)));
     setDraftTimeCostInput(formatTimeCostInput(timeCostPerMile));
-  }, [distanceSortOrder, maxDistance, priceSortOrder, selectedFuel, timeCostPerMile, totalCostSortOrder]);
+  }, [maxDistance, selectedFuel, sortDirection, sortField, timeCostPerMile]);
 
   const sliderProgress = useMemo(() => `${(draftMaxDistance / MAX_DISTANCE) * 100}%`, [draftMaxDistance]);
   const sliderThumbLeft = useMemo(
@@ -235,117 +227,53 @@ export default function ModalScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sort Results By</Text>
 
-            <View style={[styles.sortCard, draftDistanceSortOrder && styles.sortCardActive]}>
-              <View style={styles.sortLabelWrap}>
-                <Image contentFit="contain" source={distanceIcon} style={styles.sortIconSmall} />
-                <Text style={styles.sortLabel}>Distance</Text>
-              </View>
-              <View style={styles.toggleWrap}>
-                <Pressable
-                  onPress={() =>
-                    setDraftDistanceSortOrder((current) => (current === "closest" ? null : "closest"))
-                  }
-                  style={[styles.toggleButton, draftDistanceSortOrder === "closest" && styles.toggleButtonActive]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftDistanceSortOrder === "closest" && styles.toggleButtonTextActive,
-                    ]}>
-                    ASC
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    setDraftDistanceSortOrder((current) => (current === "furthest" ? null : "furthest"))
-                  }
-                  style={[styles.toggleButton, draftDistanceSortOrder === "furthest" && styles.toggleButtonActive]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftDistanceSortOrder === "furthest" && styles.toggleButtonTextActive,
-                    ]}>
-                    DESC
-                  </Text>
-                </Pressable>
-              </View>
+            <View style={styles.sortTypeRow}>
+              <Pressable
+                onPress={() => setDraftSortField("distance")}
+                style={[styles.sortTypeButton, draftSortField === "distance" && styles.sortTypeButtonActive]}>
+                <Text style={[styles.sortTypeText, draftSortField === "distance" && styles.sortTypeTextActive]}>
+                  Distance
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDraftSortField("price")}
+                style={[styles.sortTypeButton, draftSortField === "price" && styles.sortTypeButtonActive]}>
+                <Text style={[styles.sortTypeText, draftSortField === "price" && styles.sortTypeTextActive]}>
+                  Price
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setDraftSortField("total_cost")}
+                style={[styles.sortTypeButton, draftSortField === "total_cost" && styles.sortTypeButtonActive]}>
+                <Text style={[styles.sortTypeText, draftSortField === "total_cost" && styles.sortTypeTextActive]}>
+                  Total Cost
+                </Text>
+              </Pressable>
             </View>
 
-            <View style={[styles.sortCard, draftPriceSortOrder && styles.sortCardActive]}>
-              <View style={styles.sortLabelWrap}>
-                <Image contentFit="contain" source={priceIcon} style={styles.sortIconWide} />
-                <Text style={styles.sortLabel}>Price</Text>
+            <View style={[styles.sortCard, styles.sortCardActive]}>
+              <View style={styles.orderLabelWrap}>
+                <Text style={[styles.sortLabel, styles.orderLabel]}>Order</Text>
               </View>
               <View style={styles.toggleWrap}>
                 <Pressable
-                  onPress={() =>
-                    setDraftPriceSortOrder((current) => (current === "cheapest" ? null : "cheapest"))
-                  }
-                  style={[styles.toggleButton, draftPriceSortOrder === "cheapest" && styles.toggleButtonActive]}>
+                  onPress={() => setDraftSortDirection("low_high")}
+                  style={[styles.toggleButton, draftSortDirection === "low_high" && styles.toggleButtonActive]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftPriceSortOrder === "cheapest" && styles.toggleButtonTextActive,
+                      draftSortDirection === "low_high" && styles.toggleButtonTextActive,
                     ]}>
                     LOW-HIGH
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() =>
-                    setDraftPriceSortOrder((current) => (current === "most_expensive" ? null : "most_expensive"))
-                  }
-                  style={[
-                    styles.toggleButton,
-                    draftPriceSortOrder === "most_expensive" && styles.toggleButtonActive,
-                  ]}>
+                  onPress={() => setDraftSortDirection("high_low")}
+                  style={[styles.toggleButton, draftSortDirection === "high_low" && styles.toggleButtonActive]}>
                   <Text
                     style={[
                       styles.toggleButtonText,
-                      draftPriceSortOrder === "most_expensive" && styles.toggleButtonTextActive,
-                    ]}>
-                    HIGH-LOW
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.sortCard, draftTotalCostSortOrder && styles.sortCardActive]}>
-              <View style={styles.sortLabelWrap}>
-                <Image contentFit="contain" source={priceIcon} style={styles.sortIconWide} />
-                <Text style={styles.sortLabel}>Total Cost</Text>
-              </View>
-              <View style={styles.toggleWrap}>
-                <Pressable
-                  onPress={() =>
-                    setDraftTotalCostSortOrder((current) =>
-                      current === "lowest_total_cost" ? null : "lowest_total_cost"
-                    )
-                  }
-                  style={[
-                    styles.toggleButton,
-                    draftTotalCostSortOrder === "lowest_total_cost" && styles.toggleButtonActive,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftTotalCostSortOrder === "lowest_total_cost" && styles.toggleButtonTextActive,
-                    ]}>
-                    LOW-HIGH
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    setDraftTotalCostSortOrder((current) =>
-                      current === "highest_total_cost" ? null : "highest_total_cost"
-                    )
-                  }
-                  style={[
-                    styles.toggleButton,
-                    draftTotalCostSortOrder === "highest_total_cost" && styles.toggleButtonActive,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftTotalCostSortOrder === "highest_total_cost" && styles.toggleButtonTextActive,
+                      draftSortDirection === "high_low" && styles.toggleButtonTextActive,
                     ]}>
                     HIGH-LOW
                   </Text>
@@ -398,9 +326,8 @@ export default function ModalScreen() {
           <Pressable
             onPress={() => {
               setDraftFuel("regular");
-              setDraftDistanceSortOrder(null);
-              setDraftPriceSortOrder(null);
-              setDraftTotalCostSortOrder("lowest_total_cost");
+              setDraftSortField("total_cost");
+              setDraftSortDirection("low_high");
               setDraftMaxDistance(10);
               setDraftTimeCostInput(formatTimeCostInput(DEFAULT_TIME_COST));
             }}
@@ -414,9 +341,8 @@ export default function ModalScreen() {
 
               applyFilters({
                 selectedFuel: draftFuel,
-                distanceSortOrder: draftDistanceSortOrder,
-                priceSortOrder: draftPriceSortOrder,
-                totalCostSortOrder: draftTotalCostSortOrder,
+                sortField: draftSortField,
+                sortDirection: draftSortDirection,
                 maxDistance: draftMaxDistance,
                 timeCostPerMile: parsedTimeCost ?? DEFAULT_TIME_COST,
               });
@@ -586,6 +512,41 @@ const styles = StyleSheet.create({
   },
   sortCardActive: {
     borderColor: "rgba(255,159,74,0.2)",
+  },
+  orderLabelWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingRight: 12,
+  },
+  orderLabel: {
+    textAlign: "center",
+  },
+  sortTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  sortTypeButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    backgroundColor: "#262626",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  sortTypeButtonActive: {
+    backgroundColor: "#ff9f4a",
+  },
+  sortTypeText: {
+    color: "#adaaaa",
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  sortTypeTextActive: {
+    color: "#442100",
   },
   sortLabelWrap: {
     flexDirection: "row",
