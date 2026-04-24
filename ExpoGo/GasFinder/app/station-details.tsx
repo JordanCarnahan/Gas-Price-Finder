@@ -9,8 +9,8 @@ import { FuelFinderTabBar } from "@/components/fuel-finder-tab-bar";
 import { createGoogleMapsUrl } from "@/lib/stations";
 
 const heroImage = require("../assets/images/gas-title-image.png");
-const directionsIcon = "https://www.figma.com/api/mcp/asset/4c441096-b214-4a3a-b22a-a9f894f19008";
-const actionBackIcon = "https://www.figma.com/api/mcp/asset/3d89d777-9e30-468d-a099-ded41d648b97";
+const directionsIcon = require("../assets/images/station-details-directions-icon.png");
+const actionBackIcon = require("../assets/images/station-details-back-icon.png");
 
 type StationParams = {
   id: number;
