@@ -11,6 +11,8 @@ import { createGoogleMapsUrl } from "@/lib/stations";
 const heroImage = require("../assets/images/gas-title-image.png");
 const directionsIcon = require("../assets/images/station-details-directions-icon.png");
 const actionBackIcon = require("../assets/images/station-details-back-icon.png");
+const USE_DUMMY_HISTORY_DATA = true;
+const CALIFORNIA_LAST_WEEK_REGULAR_DUMMY = [5.77, 5.76, 5.75, 5.75, 5.74, 5.73, 5.73];
 
 type StationParams = {
   id: number;
@@ -52,8 +54,8 @@ const fuelCards: {
   eta?: boolean;
 }[] = [
   { key: "regular", label: "Regular", eta: true },
-  { key: "premium", label: "Plus" },
-  { key: "midgrade", label: "Mid" },
+  { key: "midgrade", label: "MidGrade" },
+  { key: "premium", label: "Premium" },
   { key: "diesel", label: "Diesel" },
 ];
 
@@ -106,6 +108,7 @@ function estimateEta(distanceMiles: number | null): string {
 
 function buildSevenDaySeries(rows: HistoryRow[], fuel: FuelKey): GraphPoint[] {
   const latestByDay = new Map<string, number>();
+  let latestDataDate: Date | null = null;
 
   rows.forEach((row) => {
     const price = row[fuel];
@@ -115,17 +118,23 @@ function buildSevenDaySeries(rows: HistoryRow[], fuel: FuelKey): GraphPoint[] {
 
     const runDate = new Date(row.run_timestamp);
     const dateKey = formatDateKey(runDate);
+    const dayDate = new Date(runDate);
+    dayDate.setHours(0, 0, 0, 0);
+
+    if (!latestDataDate || dayDate > latestDataDate) {
+      latestDataDate = dayDate;
+    }
 
     if (!latestByDay.has(dateKey)) {
       latestByDay.set(dateKey, price);
     }
   });
 
-  const today = new Date();
+  const anchorDate = latestDataDate ?? new Date();
   const points: GraphPoint[] = [];
 
   for (let index = 6; index >= 0; index -= 1) {
-    const date = new Date(today);
+    const date = new Date(anchorDate);
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - index);
     const dateKey = formatDateKey(date);
@@ -139,34 +148,52 @@ function buildSevenDaySeries(rows: HistoryRow[], fuel: FuelKey): GraphPoint[] {
   return points;
 }
 
-function withPreviewGraphData(points: GraphPoint[], fallbackPrice: number | null) {
-  const existing = points.flatMap((point) => (point.price == null ? [] : [point.price]));
-  const base = existing[existing.length - 1] ?? fallbackPrice ?? 4.25;
-  const offsets = [-0.18, -0.1, -0.07, -0.05, -0.01, 0.04, 0.1];
+function withDummyHistoryData(points: GraphPoint[], fallbackPrice: number | null) {
+  if (points.length !== 7) {
+    return points;
+  }
+
+  const anchor = fallbackPrice ?? CALIFORNIA_LAST_WEEK_REGULAR_DUMMY[6];
+  const delta = anchor - CALIFORNIA_LAST_WEEK_REGULAR_DUMMY[6];
 
   return points.map((point, index) => ({
     ...point,
-    price: point.price ?? Number((base + offsets[index]).toFixed(2)),
+    price: Number((CALIFORNIA_LAST_WEEK_REGULAR_DUMMY[index] + delta).toFixed(2)),
   }));
 }
 
 function HistoryChart({ points }: { points: GraphPoint[] }) {
+  const BAR_MIN_HEIGHT = 12;
+  const BAR_MAX_HEIGHT = 58;
   const prices = points.flatMap((point) => (point.price == null ? [] : [point.price]));
   const max = Math.max(...prices, 0);
   const min = Math.min(...prices, max);
   const range = max - min || 0.35;
-  const trend = prices.length > 1 ? (((prices[prices.length - 1] - prices[0]) / prices[0]) * 100 || 0) : 0;
+  const pricedPoints = points.filter((point): point is GraphPoint & { price: number } => point.price != null);
+  const latestPrice = pricedPoints.at(-1)?.price ?? null;
+  const previousPrice = pricedPoints.at(-2)?.price ?? null;
+  const dailyChangePercent =
+    latestPrice != null && previousPrice != null && previousPrice !== 0
+      ? ((latestPrice - previousPrice) / previousPrice) * 100
+      : null;
 
   return (
     <View style={styles.historyCard}>
       <Text style={styles.historyTitle}>PRICE HISTORY (LAST 7 DAYS)</Text>
       <View style={styles.historyBars}>
         {points.map((point, index) => {
-          const height = point.price == null ? 8 : Math.max(((point.price - min) / range) * 88 + 18, 18);
-          const isAccent = index === points.length - 2;
+          const height =
+            point.price == null
+              ? BAR_MIN_HEIGHT
+              : Math.max(((point.price - min) / range) * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT) + BAR_MIN_HEIGHT, BAR_MIN_HEIGHT);
+          const isAccent = index === points.length - 1;
+          const priceLabel = point.price == null ? "N/A" : `$${point.price.toFixed(2)}`;
 
           return (
             <View key={`${point.dayLabel}-${index}`} style={styles.historyBarWrap}>
+              <Text style={[styles.historyPriceLabel, isAccent && styles.historyPriceLabelAccent]}>
+                {priceLabel}
+              </Text>
               <View style={[styles.historyBar, { height, backgroundColor: isAccent ? "#ff9f4a" : "#444444" }]} />
               <Text style={[styles.historyDay, isAccent && styles.historyDayAccent]}>{point.dayLabel}</Text>
             </View>
@@ -174,8 +201,12 @@ function HistoryChart({ points }: { points: GraphPoint[] }) {
         })}
       </View>
       <View style={styles.historyFooter}>
-        <Text style={styles.historyFooterLabel}>Average Trend</Text>
-        <Text style={styles.historyFooterValue}>{`${trend >= 0 ? "+" : ""}${trend.toFixed(1)}%`}</Text>
+        <Text style={styles.historyFooterLabel}>Daily %</Text>
+        <Text style={styles.historyFooterValue}>
+          {dailyChangePercent == null
+            ? "N/A"
+            : `${dailyChangePercent >= 0 ? "+" : ""}${dailyChangePercent.toFixed(1)}%`}
+        </Text>
       </View>
     </View>
   );
@@ -233,14 +264,22 @@ export default function StationDetailsScreen() {
 
         const payload = await response.json();
         const rows = Array.isArray(payload) ? (payload as HistoryRow[]) : [];
-        const points = withPreviewGraphData(buildSevenDaySeries(rows, "regular"), station.regular);
+        const realPoints = buildSevenDaySeries(rows, "regular");
+        const points = USE_DUMMY_HISTORY_DATA
+          ? withDummyHistoryData(realPoints, station.regular)
+          : realPoints;
 
         if (isMounted) {
           setHistoryPoints(points);
         }
       } catch {
         if (isMounted) {
-          setHistoryPoints(withPreviewGraphData(buildSevenDaySeries([], "regular"), station.regular));
+          const fallbackPoints = buildSevenDaySeries([], "regular");
+          setHistoryPoints(
+            USE_DUMMY_HISTORY_DATA
+              ? withDummyHistoryData(fallbackPoints, station.regular)
+              : fallbackPoints
+          );
         }
       } finally {
         if (isMounted) {
@@ -395,8 +434,8 @@ const styles = StyleSheet.create({
   },
   heroImage: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 1,
-    bottom: 100,
+    opacity: .8,
+    bottom: 85,
   },
   heroOverlay: {
     position: "absolute",
@@ -527,7 +566,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   historyBars: {
-    height: 100,
+    height: 96,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -538,6 +577,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "flex-end",
+  },
+  historyPriceLabel: {
+    color: "#8f8b88",
+    fontSize: 8,
+    lineHeight: 11,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  historyPriceLabelAccent: {
+    color: "#ff9f4a",
   },
   historyBar: {
     width: "68%",
