@@ -227,57 +227,61 @@ export default function ModalScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sort Results By</Text>
 
-            <View style={styles.sortTypeRow}>
-              <Pressable
-                onPress={() => setDraftSortField("distance")}
-                style={[styles.sortTypeButton, draftSortField === "distance" && styles.sortTypeButtonActive]}>
-                <Text style={[styles.sortTypeText, draftSortField === "distance" && styles.sortTypeTextActive]}>
-                  Distance
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDraftSortField("price")}
-                style={[styles.sortTypeButton, draftSortField === "price" && styles.sortTypeButtonActive]}>
-                <Text style={[styles.sortTypeText, draftSortField === "price" && styles.sortTypeTextActive]}>
-                  Price
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setDraftSortField("total_cost")}
-                style={[styles.sortTypeButton, draftSortField === "total_cost" && styles.sortTypeButtonActive]}>
-                <Text style={[styles.sortTypeText, draftSortField === "total_cost" && styles.sortTypeTextActive]}>
-                  Total Cost
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={[styles.sortCard, styles.sortCardActive]}>
-              <View style={styles.orderLabelWrap}>
-                <Text style={[styles.sortLabel, styles.orderLabel]}>Order</Text>
+            <View style={[styles.sortGroupCard, styles.sortCardActive]}>
+              <View style={styles.sortGroupBlock}>
+                <View style={styles.sortTypeRow}>
+                  <Pressable
+                    onPress={() => setDraftSortField("distance")}
+                    style={[styles.sortTypeButton, draftSortField === "distance" && styles.sortTypeButtonActive]}>
+                    <Text style={[styles.sortTypeText, draftSortField === "distance" && styles.sortTypeTextActive]}>
+                      Distance
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setDraftSortField("price")}
+                    style={[styles.sortTypeButton, draftSortField === "price" && styles.sortTypeButtonActive]}>
+                    <Text style={[styles.sortTypeText, draftSortField === "price" && styles.sortTypeTextActive]}>
+                      Price
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setDraftSortField("total_cost")}
+                    style={[styles.sortTypeButton, draftSortField === "total_cost" && styles.sortTypeButtonActive]}>
+                    <Text style={[styles.sortTypeText, draftSortField === "total_cost" && styles.sortTypeTextActive]}>
+                      Total Cost
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-              <View style={styles.toggleWrap}>
-                <Pressable
-                  onPress={() => setDraftSortDirection("low_high")}
-                  style={[styles.toggleButton, draftSortDirection === "low_high" && styles.toggleButtonActive]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftSortDirection === "low_high" && styles.toggleButtonTextActive,
-                    ]}>
-                    LOW-HIGH
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setDraftSortDirection("high_low")}
-                  style={[styles.toggleButton, draftSortDirection === "high_low" && styles.toggleButtonActive]}>
-                  <Text
-                    style={[
-                      styles.toggleButtonText,
-                      draftSortDirection === "high_low" && styles.toggleButtonTextActive,
-                    ]}>
-                    HIGH-LOW
-                  </Text>
-                </Pressable>
+
+              <View style={styles.sortGroupDivider} />
+
+              <View style={styles.sortOrderRow}>
+                <Text style={[styles.sortLabel, styles.orderLabel]}>Order</Text>
+                <View style={styles.toggleWrap}>
+                  <Pressable
+                    onPress={() => setDraftSortDirection("low_high")}
+                    style={[styles.toggleButton, draftSortDirection === "low_high" && styles.toggleButtonActive]}>
+                    <Text
+                      style={[
+                        styles.toggleButtonText,
+                        draftSortDirection === "low_high" && styles.toggleButtonTextActive,
+                      ]}>
+                      LOW-HIGH
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setDraftSortDirection("high_low")}
+                    style={[styles.toggleButton, draftSortDirection === "high_low" && styles.toggleButtonActive]}>
+                    <Text
+                      style={[
+                        styles.toggleButtonText,
+                        draftSortDirection === "high_low" && styles.toggleButtonTextActive,
+                      ]}>
+                      HIGH-LOW
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
             </View>
 
@@ -513,14 +517,29 @@ const styles = StyleSheet.create({
   sortCardActive: {
     borderColor: "rgba(255,159,74,0.2)",
   },
-  orderLabelWrap: {
-    flex: 1,
+  sortGroupCard: {
+    backgroundColor: "#131313",
+    borderWidth: 2,
+    borderColor: "#422f1e",
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+  },
+  sortGroupBlock: {
+    gap: 8,
+  },
+  sortGroupDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(72,72,71,0.3)",
+  },
+  sortOrderRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingRight: 12,
+    justifyContent: "space-between",
+    gap: 12,
   },
   orderLabel: {
-    textAlign: "center",
+    minWidth: 56,
   },
   sortTypeRow: {
     flexDirection: "row",
